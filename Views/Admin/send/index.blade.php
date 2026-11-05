@@ -19,9 +19,9 @@
         .bottom .button-container { display: inline-block; line-height: 52px; padding-right: 15px; }
         .bottom .button-container button { margin-left: 10px; }
         .helper-tip { color: #999; font-size: 12px; margin-top: 4px; }
-        .notice-bar { background: #f0f7ff; border: 1px solid #cfe3ff; color: #31578a; padding: 8px 12px; border-radius: 3px; font-size: 13px; line-height: 1.8; margin-bottom: 12px; }
-        .code-editor { font-family: Consolas, Monaco, "Courier New", monospace; font-size: 12px; line-height: 1.6; background: #f7f8fa; color: #2f3a45; min-height: 160px; }
-        .result-box { margin-top: 12px; padding: 12px 14px; border-radius: 3px; background: #f0f9eb; border: 1px solid #c2e7b0; color: #3f7a24; font-size: 14px; line-height: 1.8; }
+        .notice-bar { background: rgba(30, 159, 255, 0.08); border: 1px solid rgba(30, 159, 255, 0.35); color: #1e9fff; padding: 8px 12px; border-radius: 3px; font-size: 13px; line-height: 1.8; margin-bottom: 12px; }
+        .code-editor { font-size: 12px; line-height: 1.6; background: whitesmoke; color: #5f5f5f; min-height: 160px; }
+        .result-box { margin-top: 12px; padding: 12px 14px; border-radius: 3px; background: rgba(22, 183, 119, 0.08); border: 1px solid rgba(22, 183, 119, 0.35); color: #16b777; font-size: 14px; line-height: 1.8; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
     </style>
@@ -168,6 +168,19 @@ layui.use(['jquery', 'form', 'layer'], function () {
         form = layui.form,
         layer = layui.layer;
 
+        // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
+    // 防重复提交锁（I9）：异步提交期间拦截后续触发
+    var __busy = false;
+    function busyLock() { if (__busy) { return true; } __busy = true; return false; }
+    function busyUnlock() { __busy = false; }
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -232,7 +245,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
             fillSelect($('#sendTemplate'), templates, '不使用模板（直发）', ['code', 'value', 'id'], ['name', 'label', 'title']);
             fillSelect($('#sendAccountCode'), accounts, '跟随默认账号', ['code', 'value', 'id'], ['name', 'label', 'title']);
             toggleMode();
-        }, 'json').fail(function () { layer.msg('选项加载失败', { icon: 2 }); });
+        }, 'json').fail(function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '选项加载失败'), { icon: 2 }); });
     }
 
     // 根据是否选择模板切换变量区与直发内容区
@@ -304,7 +317,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
 
     // 邮件 HTML 预览：隔离到 iframe 展示
     function showHtml(title, html) {
-        layer.open({
+        layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1, title: title, area: ['860px', '640px'],
             content: '<iframe id="sendPreviewFrame" style="display:block;width:100%;height:100%;border:0;"></iframe>',
             success: function () {
@@ -312,7 +325,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
                 if (frame && frame.contentWindow) {
                     var doc = frame.contentWindow.document;
                     doc.open();
-                    doc.write(html || '<p style="font-family:sans-serif;padding:24px;color:#999;">（无 HTML 内容）</p>');
+                    doc.write(html || '<p style="padding:24px;color:#999;">（无 HTML 内容）</p>');
                     doc.close();
                 }
             }
@@ -351,17 +364,18 @@ layui.use(['jquery', 'form', 'layer'], function () {
         if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
         var code = $('#sendTemplate').val();
         if (!code) { layer.msg('直发模式直接填写主题与正文即可，无需模板预览', { icon: 0 }); return; }
+        if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
         $.ajax({
             url: API + '/send/preview',
             type: 'POST', contentType: 'application/json', dataType: 'json',
             data: JSON.stringify({ template_code: code, vars: collectVars() }),
             success: function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code === 0) { showHtml('邮件预览', pickHtml(res)); }
                 else { layer.msg(res.message || '预览失败', { icon: 2 }); }
             },
-            error: function () { layer.close(ld); layer.msg('预览失败', { icon: 2 }); }
+            error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '预览失败'), { icon: 2 }); }
         });
     });
 
@@ -372,13 +386,14 @@ layui.use(['jquery', 'form', 'layer'], function () {
         if (!payload.to) { layer.msg('请填写收件人', { icon: 2 }); return; }
         if (!payload.template_code && !$.trim(payload.subject)) { layer.msg('直发模式请填写邮件主题', { icon: 2 }); return; }
 
+        if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
         $.ajax({
             url: API + '/send',
             type: 'POST', contentType: 'application/json', dataType: 'json',
             data: JSON.stringify(payload),
             success: function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code === 0) {
                     var rid = '';
                     if (res.data && typeof res.data === 'object') { rid = res.data.record_id || res.data.id || ''; }
@@ -391,7 +406,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
                     layer.msg(res.message || '发送失败', { icon: 2, time: 2500 });
                 }
             },
-            error: function () { layer.close(ld); layer.msg('发送失败', { icon: 2 }); }
+            error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '发送失败'), { icon: 2 }); }
         });
     });
 

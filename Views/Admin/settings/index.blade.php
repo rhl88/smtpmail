@@ -19,10 +19,10 @@
         .bottom .button-container { display: inline-block; line-height: 52px; padding-right: 15px; }
         .bottom .button-container button { margin-left: 10px; }
         .helper-tip { color: #999; font-size: 12px; margin-top: 4px; }
-        .takeover-doc { background: #f0f7ff; border: 1px solid #cfe3ff; color: #31578a; padding: 10px 14px; border-radius: 3px; font-size: 13px; line-height: 1.9; margin-bottom: 12px; }
+        .takeover-doc { background: rgba(30, 159, 255, 0.08); border: 1px solid rgba(30, 159, 255, 0.35); color: #1e9fff; padding: 10px 14px; border-radius: 3px; font-size: 13px; line-height: 1.9; margin-bottom: 12px; }
         .takeover-status { padding: 10px 14px; border-radius: 3px; font-size: 13px; line-height: 1.9; margin-bottom: 12px; }
-        .takeover-status.ok { background: #f0f9eb; border: 1px solid #c2e7b0; color: #3f7a24; }
-        .takeover-status.warn { background: #fff7e6; border: 1px solid #ffd591; color: #ad4e00; }
+        .takeover-status.ok { background: rgba(22, 183, 119, 0.08); border: 1px solid rgba(22, 183, 119, 0.35); color: #16b777; }
+        .takeover-status.warn { background: rgba(255, 184, 0, 0.08); border: 1px solid rgba(255, 184, 0, 0.35); color: #ffb800; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
     </style>
@@ -62,6 +62,20 @@ layui.use(['jquery', 'form', 'layer'], function () {
         form = layui.form,
         layer = layui.layer;
 
+    // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
+    // 防重复提交锁（I9）：异步提交期间拦截后续触发
+    var __busy = false;
+    function busyLock() { if (__busy) { return true; } __busy = true; return false; }
+    function busyUnlock() { __busy = false; }
+
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -80,6 +94,8 @@ layui.use(['jquery', 'form', 'layer'], function () {
         { key: 'api', title: '接口访问设置' },
         { key: 'system_templates', title: '系统邮件模板映射' }
     ];
+    // 开关字段名单（与 manifest type=switch 的配置项一致；checkbox 不被 jQuery serialize 收集，需单独收集转 '1'/'0'）
+    var switchFields = ['takeover_system_mail', 'use_queue', 'enable_blacklist', 'api_enabled'];
 
     // HTML 转义，避免拼接内容造成注入
     function escapeHtml(str) {
@@ -149,17 +165,17 @@ layui.use(['jquery', 'form', 'layer'], function () {
                 var type = it.type || 'text';
                 var value = it.value == null ? '' : it.value;
                 var tips = it.tips || '';
-                html += '<div class="layui-form-item"><label class="layui-form-label">' + escapeHtml(title) + '</label><div class="layui-input-block">';
+                html += '<div class="layui-form-item"><label class="layui-form-label" for="cfg_' + escapeHtml(key) + '">' + escapeHtml(title) + '</label><div class="layui-input-block">';
                 if (type === 'switch') {
                     var on = (String(value) === '1' || value === 1 || value === true || value === 'true');
-                    html += '<input type="checkbox" lay-skin="switch" lay-text="开启|关闭" data-key="' + escapeHtml(key) + '" data-type="switch"' + (on ? ' checked' : '') + '>';
+                    html += '<input type="checkbox" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" lay-skin="switch" lay-text="开启|关闭" data-key="' + escapeHtml(key) + '" data-type="switch"' + (on ? ' checked' : '') + '>';
                 } else if (type === 'password') {
-                    // 密码字段返回时已脱敏，不回填；留空表示不修改
-                    html += '<input type="password" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="password" value="" placeholder="已脱敏保存，留空表示不修改">';
+                    // 密钥字段按规范明文回显已保存值，需修改时直接输入新值覆盖保存（12A.5）
+                    html += '<input type="password" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="password" value="' + escapeHtml(value) + '" placeholder="请输入接口令牌">';
                 } else if (type === 'number') {
-                    html += '<input type="number" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="number" value="' + escapeHtml(value) + '">';
+                    html += '<input type="number" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="number" value="' + escapeHtml(value) + '">';
                 } else {
-                    html += '<input type="text" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="text" value="' + escapeHtml(value) + '">';
+                    html += '<input type="text" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="text" value="' + escapeHtml(value) + '">';
                 }
                 if (tips) { html += '<div class="helper-tip">' + escapeHtml(tips) + '</div>'; }
                 html += '</div></div>';
@@ -177,7 +193,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
             layer.close(ld);
             if (res.code !== 0) { layer.msg(res.message || '设置读取失败', { icon: 2 }); return; }
             renderGroups(res.data || {});
-        }, 'json').fail(function () { layer.close(ld); layer.msg('设置读取失败', { icon: 2 }); });
+        }, 'json').fail(function (xhr) { layer.close(ld); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '设置读取失败'), { icon: 2 }); });
     }
 
     // 按候选键取布尔值，兼容不同状态字段命名
@@ -206,23 +222,25 @@ layui.use(['jquery', 'form', 'layer'], function () {
             html += '；';
             html += hasDefault ? '默认发信账号已配置' : '默认发信账号未配置，请先到「发信账号」设置默认账号';
             $('#takeoverStatus').removeClass('ok warn').addClass(enabled && hasDefault ? 'ok' : 'warn').html(html);
-        }, 'json').fail(function () {
-            $('#takeoverStatus').removeClass('ok').addClass('warn').html('<i class="fa fa-warning"></i> 接管状态读取失败');
+        }, 'json').fail(function (xhr) {
+            if (xhr.status === 401) { return; }
+            $('#takeoverStatus').removeClass('ok').addClass('warn').html('<i class="fa fa-warning"></i> 接管状态读取失败：' + escapeHtml(parseError(xhr, '未知原因')));
         });
     }
 
-    // 保存：按键值扁平对象提交，密码字段留空则跳过
+    // 保存：先收集普通输入项，再按 switchFields 单独收集开关（12A.5），密钥清空提交视为不修改
     $('#btnSaveSettings').on('click', function () {
         if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
+        if (busyLock()) { return; }
         var payload = {};
-        $('[data-key]').each(function () {
-            var $el = $(this);
-            var key = $el.data('key');
-            var type = $el.data('type');
-            var val = (type === 'switch') ? ($el.is(':checked') ? '1' : '0') : $el.val();
-            if (type === 'password' && $.trim(val) === '') { return; }
-            payload[key] = val;
+        $('.settings-form input[type="text"], .settings-form input[type="password"], .settings-form input[type="number"]').each(function () {
+            var key = $(this).data('key');
+            if (key) { payload[key] = String($(this).val() == null ? '' : $(this).val()); }
         });
+        switchFields.forEach(function (field) {
+            payload[field] = $('input[data-key="' + field + '"]').is(':checked') ? '1' : '0';
+        });
+        if ($.trim(payload.api_token || '') === '') { delete payload.api_token; }
 
         var ld = layer.load(1, { shade: 0.3 });
         $.ajax({
@@ -231,6 +249,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
             data: JSON.stringify(payload),
             success: function (res) {
                 layer.close(ld);
+                busyUnlock();
                 if (res.code === 0) {
                     layer.msg(res.message || '保存成功', { icon: 1, time: 1200 });
                     loadSettings();
@@ -239,7 +258,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
                     layer.msg(res.message || '保存失败', { icon: 2, time: 2000 });
                 }
             },
-            error: function () { layer.close(ld); layer.msg('保存失败', { icon: 2 }); }
+            error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '保存失败'), { icon: 2 }); }
         });
     });
 

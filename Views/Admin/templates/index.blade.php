@@ -17,9 +17,9 @@
         .modal-bottom .button-container { display: inline-block; line-height: 52px; padding-right: 15px; }
         .modal-bottom .button-container button { margin-left: 10px; }
         .helper-tip { color: #999; font-size: 12px; margin-top: 4px; }
-        .tpl-notice { background: #fff7e6; border: 1px solid #ffd591; color: #ad4e00; padding: 10px 14px; border-radius: 3px; font-size: 13px; line-height: 1.8; margin-bottom: 10px; }
+        .tpl-notice { background: rgba(255, 184, 0, 0.08); border: 1px solid rgba(255, 184, 0, 0.35); color: #ffb800; padding: 10px 14px; border-radius: 3px; font-size: 13px; line-height: 1.8; margin-bottom: 10px; }
         /* HTML 正文采用代码风格编辑区 */
-        .code-editor { font-family: Consolas, Monaco, "Courier New", monospace; font-size: 12px; line-height: 1.6; background: #f7f8fa; color: #2f3a45; min-height: 190px; }
+        .code-editor { font-size: 12px; line-height: 1.6; background: whitesmoke; color: #5f5f5f; min-height: 190px; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
     </style>
@@ -100,6 +100,19 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         form = layui.form,
         layer = layui.layer;
 
+        // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
+    // 防重复提交锁（I9）：异步提交期间拦截后续触发
+    var __busy = false;
+    function busyLock() { if (__busy) { return true; } __busy = true; return false; }
+    function busyUnlock() { __busy = false; }
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -170,7 +183,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
 
     // ============ 邮件正文预览（隔离到 iframe，避免影响后台页面样式） ============
     function showHtml(title, html) {
-        layer.open({
+        layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1,
             title: title,
             area: ['860px', '640px'],
@@ -180,7 +193,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                 if (frame && frame.contentWindow) {
                     var doc = frame.contentWindow.document;
                     doc.open();
-                    doc.write(html || '<p style="font-family:sans-serif;padding:24px;color:#999;">（模板无 HTML 内容）</p>');
+                    doc.write(html || '<p style="padding:24px;color:#999;">（模板无 HTML 内容）</p>');
                     doc.close();
                 }
             }
@@ -193,7 +206,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
 
     // 弹出变量输入小窗，确认后回调变量对象（留空表示不带变量）
     function askVars(cb) {
-        layer.open({
+        layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1,
             title: '预览变量（JSON，可留空）',
             area: ['480px', '260px'],
@@ -235,13 +248,13 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         url: API + '/templates',
         method: 'get',
         page: { layout: ['count', 'prev', 'page', 'next', 'limit'], groups: 5, limit: 15, limits: [15, 30, 50, 100] },
-        skin: false,
+        skin: false, request: { pageName: 'page', limitName: 'per_page' },
         cols: cols,
         parseData: function (res) {
             return { code: res.code === 0 ? 0 : 1, msg: res.msg || '', count: res.count || 0, data: res.data || [] };
         },
         done: function () { hidePermButtons(); },
-        error: function () { layer.msg('列表加载失败', { icon: 2 }); }
+        error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '列表加载失败'), { icon: 2 }); }
     });
 
     form.on('submit(doSearch)', function (data) {
@@ -291,7 +304,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         resetForm();
 
         var doOpen = function () {
-            tplLayerIndex = layer.open({
+            tplLayerIndex = layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
                 type: 1,
                 title: editingId ? '编辑邮件模板' : '新建邮件模板',
                 area: ['900px', '640px'],
@@ -305,9 +318,10 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         // 先确保账号下拉已就绪，再回填或打开
         loadAccountOptions(function () {
             if (!editingId) { doOpen(); return; }
-            var ld = layer.load(1, { shade: 0.3 });
+            if (busyLock()) { return; }
+        var ld = layer.load(1, { shade: 0.3 });
             $.get(API + '/templates/' + editingId, function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code !== 0) { layer.msg(res.message || '模板读取失败', { icon: 2 }); return; }
                 var d = res.data || {};
                 $('#tplCode').val(d.code || '');
@@ -322,11 +336,11 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                 $('#tplAccountId').val(d.account_id != null ? String(d.account_id) : '');
                 // 内置模板禁止修改编码
                 if (d.is_system == 1) {
-                    $('#tplCode').prop('disabled', true).css('background', '#f2f2f2');
+                    $('#tplCode').prop('disabled', true).css('background', 'whitesmoke');
                 }
                 form.render('select');
                 doOpen();
-            }, 'json').fail(function () { layer.close(ld); layer.msg('模板读取失败', { icon: 2 }); });
+            }, 'json').fail(function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '模板读取失败'), { icon: 2 }); });
         });
     }
 
@@ -351,6 +365,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         };
         if (!payload.code || !payload.name) { layer.msg('请填写模板编码与名称', { icon: 2 }); return; }
 
+        if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
         $.ajax({
             url: editingId ? (API + '/templates/' + editingId) : (API + '/templates'),
@@ -359,7 +374,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
             dataType: 'json',
             data: JSON.stringify(payload),
             success: function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code === 0) {
                     layer.close(tplLayerIndex);
                     layer.msg(res.message || '保存成功', { icon: 1, time: 1200 });
@@ -368,13 +383,13 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     layer.msg(res.message || '保存失败', { icon: 2, time: 2000 });
                 }
             },
-            error: function () { layer.close(ld); layer.msg('保存失败', { icon: 2 }); }
+            error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '保存失败'), { icon: 2 }); }
         });
     });
 
     // 模板测试信弹窗：收件邮箱 + 变量 JSON
     function openTestDialog(id) {
-        layer.open({
+        layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1,
             title: '发送模板测试信',
             area: ['520px', '340px'],
@@ -397,7 +412,8 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     } catch (e) { layer.msg('变量 JSON 格式不正确', { icon: 2 }); return; }
                 }
                 layer.close(idx);
-                var ld = layer.load(1, { shade: 0.3 });
+                if (busyLock()) { return; }
+        var ld = layer.load(1, { shade: 0.3 });
                 $.ajax({
                     url: API + '/templates/' + id + '/test',
                     type: 'POST',
@@ -405,10 +421,10 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     dataType: 'json',
                     data: JSON.stringify({ to: to, vars: vars }),
                     success: function (res) {
-                        layer.close(ld);
+                        layer.close(ld); busyUnlock();
                         layer.msg(res.message || (res.code === 0 ? '测试信已发送' : '发送失败'), { icon: res.code === 0 ? 1 : 2, time: 2500 });
                     },
-                    error: function () { layer.close(ld); layer.msg('请求失败', { icon: 2 }); }
+                    error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '请求失败'), { icon: 2 }); }
                 });
             }
         });
@@ -429,7 +445,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     if (res.code === 0) { layer.msg(res.message || '已复制', { icon: 1 }); table.reload('templatesTable'); }
                     else { layer.msg(res.message || '复制失败', { icon: 2 }); }
                 },
-                error: function () { layer.msg('复制失败', { icon: 2 }); }
+                error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '复制失败'), { icon: 2 }); }
             });
         } else if (layEvent === 'toggle') {
             $.ajax({
@@ -448,21 +464,22 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                         catch (e) { table.reload('templatesTable'); }
                     } else { table.reload('templatesTable'); }
                 },
-                error: function () { layer.msg('切换失败', { icon: 2 }); }
+                error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '切换失败'), { icon: 2 }); }
             });
         } else if (layEvent === 'preview') {
             askVars(function (vars) {
-                var ld = layer.load(1, { shade: 0.3 });
+                if (busyLock()) { return; }
+        var ld = layer.load(1, { shade: 0.3 });
                 $.ajax({
                     url: API + '/templates/' + data.id + '/preview',
                     type: 'POST', contentType: 'application/json', dataType: 'json',
                     data: JSON.stringify({ vars: vars }),
                     success: function (res) {
-                        layer.close(ld);
+                        layer.close(ld); busyUnlock();
                         if (res.code === 0) { showHtml('模板预览', pickHtml(res)); }
                         else { layer.msg(res.message || '预览失败', { icon: 2 }); }
                     },
-                    error: function () { layer.close(ld); layer.msg('预览失败', { icon: 2 }); }
+                    error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '预览失败'), { icon: 2 }); }
                 });
             });
         } else if (layEvent === 'test') {
@@ -477,7 +494,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                         if (res.code === 0) { layer.msg(res.message || '删除成功', { icon: 1 }, function () { table.reload('templatesTable'); }); }
                         else { layer.msg(res.message || '删除失败', { icon: 2 }); }
                     },
-                    error: function () { layer.msg('删除失败', { icon: 2 }); }
+                    error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '删除失败'), { icon: 2 }); }
                 });
             });
         }

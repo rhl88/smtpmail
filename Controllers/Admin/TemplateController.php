@@ -31,7 +31,7 @@ class TemplateController extends BaseAdminController
             app(TemplateService::class)->paginate(
                 $request->input('keyword'),
                 $request->input('category'),
-                $this->pageSize($request->input('limit'))
+                $this->pageSize($request->input('per_page'))
             ),
             fn (SmtpmailTemplate $t) => $t->toSummaryArray()
         ));
@@ -42,7 +42,7 @@ class TemplateController extends BaseAdminController
         return $this->run(fn () => $this->success(app(TemplateService::class)->options()));
     }
 
-    public function show(int $id): JsonResponse
+    public function show($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -64,7 +64,7 @@ class TemplateController extends BaseAdminController
         });
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -77,7 +77,7 @@ class TemplateController extends BaseAdminController
         });
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -90,7 +90,7 @@ class TemplateController extends BaseAdminController
         });
     }
 
-    public function duplicate(int $id): JsonResponse
+    public function duplicate($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -102,7 +102,7 @@ class TemplateController extends BaseAdminController
         ));
     }
 
-    public function toggle(int $id): JsonResponse
+    public function toggle($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -117,7 +117,7 @@ class TemplateController extends BaseAdminController
     /**
      * 预览渲染结果（不发送、不落库）
      */
-    public function preview(Request $request, int $id): JsonResponse
+    public function preview(Request $request, $id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -131,7 +131,7 @@ class TemplateController extends BaseAdminController
     /**
      * 用该模板向指定邮箱发一封测试信（同步）
      */
-    public function test(Request $request, int $id): JsonResponse
+    public function test(Request $request, $id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();

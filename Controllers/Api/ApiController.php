@@ -9,6 +9,7 @@ use App\Apps\CmsproSmtpmail\Services\RecordService;
 use App\Apps\CmsproSmtpmail\Services\TemplateService;
 use App\Apps\CmsproSmtpmail\Models\SmtpmailRecord;
 use App\Http\Controllers\Controller;
+use App\Http\Responses\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -84,7 +85,7 @@ class ApiController extends Controller
             return $deny;
         }
 
-        $pageSize = max(1, min(100, (int) $request->input('limit', 15)));
+        $pageSize = max(1, min(100, (int) $request->input('per_page', 15)));
         $paginator = app(RecordService::class)->paginate(
             $request->input('status'),
             $request->input('keyword'),
@@ -142,11 +143,11 @@ class ApiController extends Controller
 
     protected function ok(mixed $data = null, string $message = 'ok'): JsonResponse
     {
-        return response()->json(['code' => 0, 'message' => $message, 'data' => $data]);
+        return response()->json(ApiResponse::success($data, $message));
     }
 
     protected function error(string $message, int $code = 40001): JsonResponse
     {
-        return response()->json(['code' => $code, 'message' => $message, 'data' => null], $code >= 50000 ? 500 : 200);
+        return response()->json(ApiResponse::error($code, $message), $code >= 50000 ? 500 : 200);
     }
 }

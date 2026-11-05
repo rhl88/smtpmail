@@ -8,6 +8,7 @@ use App\Apps\CmsproSmtpmail\Controllers\Admin\RecordController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\SendController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\SettingController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\TemplateController;
+use App\Apps\CmsproSmtpmail\Http\Middleware\ForceJsonResponse;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,8 +33,8 @@ Route::get('/blacklist', [BlacklistController::class, 'index'])->name('blacklist
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
 Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
 
-// 二、数据接口
-Route::prefix('api')->name('api.')->group(function () {
+// 二、数据接口（强制 JSON 响应：validate 失败返回 422 JSON，禁止 302 重定向）
+Route::prefix('api')->middleware(ForceJsonResponse::class)->name('api.')->group(function () {
     // 发信账号
     Route::get('/accounts/options', [AccountController::class, 'options'])->name('accounts.options');
     Route::get('/accounts', [AccountController::class, 'list'])->name('accounts.list');

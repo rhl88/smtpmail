@@ -75,6 +75,19 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         form = layui.form,
         layer = layui.layer;
 
+        // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
+    // 防重复提交锁（I9）：异步提交期间拦截后续触发
+    var __busy = false;
+    function busyLock() { if (__busy) { return true; } __busy = true; return false; }
+    function busyUnlock() { __busy = false; }
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -130,13 +143,13 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         url: API + '/batches',
         method: 'get',
         page: { layout: ['count', 'prev', 'page', 'next', 'limit'], groups: 5, limit: 15, limits: [15, 30, 50, 100] },
-        skin: false,
+        skin: false, request: { pageName: 'page', limitName: 'per_page' },
         cols: cols,
         parseData: function (res) {
             return { code: res.code === 0 ? 0 : 1, msg: res.msg || '', count: res.count || 0, data: res.data || [] };
         },
         done: function () { hidePermButtons(); },
-        error: function () { layer.msg('列表加载失败', { icon: 2 }); }
+        error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '列表加载失败'), { icon: 2 }); }
     });
 
     // ============ 模板下拉（取自模板选项接口） ============
@@ -188,7 +201,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         loadTemplateOptions(function () {
             $('#batTemplateCode').val('');
             form.render('select');
-            batchLayerIndex = layer.open({
+            batchLayerIndex = layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
                 type: 1,
                 title: '新建批量群发',
                 area: ['680px', '540px'],
@@ -224,13 +237,14 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         if (!payload.name || !payload.template_code) { layer.msg('请填写名称并选择模板', { icon: 2 }); return; }
         if (!$.trim(payload.recipients)) { layer.msg('请填写收件人邮箱，每行一个', { icon: 2 }); return; }
 
+        if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
         $.ajax({
             url: API + '/batches',
             type: 'POST', contentType: 'application/json', dataType: 'json',
             data: JSON.stringify(payload),
             success: function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code === 0) {
                     layer.close(batchLayerIndex);
                     layer.msg(res.message || '已创建', { icon: 1, time: 1200 });
@@ -239,7 +253,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     layer.msg(res.message || '创建失败', { icon: 2, time: 2000 });
                 }
             },
-            error: function () { layer.close(ld); layer.msg('创建失败', { icon: 2 }); }
+            error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '创建失败'), { icon: 2 }); }
         });
     });
 
@@ -257,7 +271,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     if (res.code === 0) { layer.msg(res.message || '已取消', { icon: 1 }); table.reload('batchesTable'); }
                     else { layer.msg(res.message || '取消失败', { icon: 2 }); }
                 },
-                error: function () { layer.msg('取消失败', { icon: 2 }); }
+                error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '取消失败'), { icon: 2 }); }
             });
         });
     });

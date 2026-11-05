@@ -12,7 +12,7 @@
     <style>
         /* 详情弹窗：上部元信息 + 下部隔离正文 iframe */
         .detail-wrap { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
-        .detail-meta { flex: 0 0 auto; padding: 10px 15px; border-bottom: 1px solid #e6e6e6; background: #fafbfc; font-size: 13px; line-height: 1.9; color: #555; }
+        .detail-meta { flex: 0 0 auto; padding: 10px 15px; border-bottom: 1px solid #e6e6e6; background: whitesmoke; font-size: 13px; line-height: 1.9; color: #5f5f5f; }
         .detail-meta .meta-label { color: #999; margin-right: 4px; }
         .detail-frame { flex: 1 1 auto; width: 100%; border: 0; }
         .helper-tip { color: #999; font-size: 12px; margin-top: 4px; }
@@ -108,6 +108,19 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         form = layui.form,
         layer = layui.layer;
 
+        // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
+    // 防重复提交锁（I9）：异步提交期间拦截后续触发
+    var __busy = false;
+    function busyLock() { if (__busy) { return true; } __busy = true; return false; }
+    function busyUnlock() { __busy = false; }
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -168,13 +181,13 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         url: API + '/records',
         method: 'get',
         page: { layout: ['count', 'prev', 'page', 'next', 'limit'], groups: 5, limit: 15, limits: [15, 30, 50, 100] },
-        skin: false,
+        skin: false, request: { pageName: 'page', limitName: 'per_page' },
         cols: cols,
         parseData: function (res) {
             return { code: res.code === 0 ? 0 : 1, msg: res.msg || '', count: res.count || 0, data: res.data || [] };
         },
         done: function () { hidePermButtons(); },
-        error: function () { layer.msg('列表加载失败', { icon: 2 }); }
+        error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '列表加载失败'), { icon: 2 }); }
     });
 
     form.on('submit(doSearch)', function () {
@@ -194,16 +207,17 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         if (frame && frame.contentWindow) {
             var doc = frame.contentWindow.document;
             doc.open();
-            doc.write(html || '<p style="font-family:sans-serif;padding:24px;color:#999;">（该记录未保存 HTML 正文）</p>');
+            doc.write(html || '<p style="padding:24px;color:#999;">（该记录未保存 HTML 正文）</p>');
             doc.close();
         }
     }
 
     function openDetail(id) {
         if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
+        if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
         $.get(API + '/records/' + id, function (res) {
-            layer.close(ld);
+            layer.close(ld); busyUnlock();
             if (res.code !== 0) { layer.msg(res.message || '详情读取失败', { icon: 2 }); return; }
             var d = res.data || {};
             var meta = '' +
@@ -214,7 +228,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                 '<div><span class="meta-label">时间：</span>' + escapeHtml(d.created_at || d.sent_at || '') +
                 '　<span class="meta-label">来源：</span>' + escapeHtml(d.source || d.source_text || '') + '</div>';
             $('#detailMeta').html(meta);
-            layer.open({
+            layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
                 type: 1,
                 title: '邮件详情 · 记录 #' + id,
                 area: ['900px', '640px'],
@@ -223,7 +237,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                 success: function () { $('#recordDetail').show(); writeFrame(d.body_html || ''); },
                 end: function () { $('#recordDetail').hide(); }
             });
-        }, 'json').fail(function () { layer.close(ld); layer.msg('详情读取失败', { icon: 2 }); });
+        }, 'json').fail(function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '详情读取失败'), { icon: 2 }); });
     }
 
     // ============ 行内操作 ============
@@ -241,7 +255,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     if (res.code === 0) { layer.msg(res.message || '已重新投递', { icon: 1 }); table.reload('recordsTable'); }
                     else { layer.msg(res.message || '重试失败', { icon: 2 }); }
                 },
-                error: function () { layer.msg('重试失败', { icon: 2 }); }
+                error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '重试失败'), { icon: 2 }); }
             });
         } else if (layEvent === 'cancel') {
             layer.confirm('确定取消该条待发送记录？', { icon: 3, title: '取消确认' }, function (idx) {
@@ -253,7 +267,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                         if (res.code === 0) { layer.msg(res.message || '已取消', { icon: 1 }); table.reload('recordsTable'); }
                         else { layer.msg(res.message || '取消失败', { icon: 2 }); }
                     },
-                    error: function () { layer.msg('取消失败', { icon: 2 }); }
+                    error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '取消失败'), { icon: 2 }); }
                 });
             });
         } else if (layEvent === 'delete') {
@@ -266,7 +280,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                         if (res.code === 0) { layer.msg(res.message || '删除成功', { icon: 1 }, function () { table.reload('recordsTable'); }); }
                         else { layer.msg(res.message || '删除失败', { icon: 2 }); }
                     },
-                    error: function () { layer.msg('删除失败', { icon: 2 }); }
+                    error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '删除失败'), { icon: 2 }); }
                 });
             });
         }

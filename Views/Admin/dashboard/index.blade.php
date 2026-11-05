@@ -14,22 +14,22 @@
         .stat-card { flex: 1 1 150px; min-width: 150px; background: #fff; border: 1px solid #e8e8e8; border-radius: 4px; padding: 16px 10px; text-align: center; }
         .stat-card .stat-value { font-size: 26px; font-weight: 600; color: #333; line-height: 1.4; }
         .stat-card .stat-label { font-size: 13px; color: #999; margin-top: 4px; }
-        .stat-card.hl .stat-value { color: #1e6fff; }
-        .stat-card.good .stat-value { color: #52a532; }
-        .stat-card.bad .stat-value { color: #d9534f; }
+        .stat-card.hl .stat-value { color: #1e9fff; }
+        .stat-card.good .stat-value { color: #16b777; }
+        .stat-card.bad .stat-value { color: #ff5722; }
         /* 近 7 日趋势：纯 CSS 柱状条，不依赖任何外部图表库 */
         .trend-chart { display: flex; align-items: flex-end; gap: 10px; height: 230px; padding: 18px 8px 0; border-bottom: 1px solid #e6e6e6; }
         .trend-item { flex: 1 1 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
         .trend-bars { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 4px; }
         .trend-bar { width: 18px; border-radius: 3px 3px 0 0; position: relative; min-height: 2px; }
-        .trend-bar.total { background: #5fb0f7; }
-        .trend-bar.success { background: #67b93a; }
+        .trend-bar.total { background: #1e9fff; }
+        .trend-bar.success { background: #16b777; }
         .trend-bar .val { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #666; white-space: nowrap; }
         .trend-label { height: 30px; line-height: 30px; font-size: 12px; color: #999; white-space: nowrap; }
         .trend-legend { font-size: 12px; color: #999; padding-top: 8px; }
         .trend-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 12px; vertical-align: middle; }
-        .trend-legend .dot.total { background: #5fb0f7; }
-        .trend-legend .dot.success { background: #67b93a; }
+        .trend-legend .dot.total { background: #1e9fff; }
+        .trend-legend .dot.success { background: #16b777; }
         .empty-tip { color: #999; font-size: 13px; padding: 40px 0; text-align: center; }
     </style>
     @include('admin.partials.permission-script')
@@ -72,6 +72,15 @@ layui.use(['jquery', 'layer'], function () {
     var $ = layui.jquery,
         layer = layui.layer;
 
+        // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -178,7 +187,7 @@ layui.use(['jquery', 'layer'], function () {
             if (res.code !== 0) { layer.msg(res.message || '统计加载失败', { icon: 2 }); return; }
             renderCards(res.data || {});
             renderTrend(res.data || {});
-        }, 'json').fail(function () { layer.close(ld); layer.msg('统计加载失败', { icon: 2 }); });
+        }, 'json').fail(function (xhr) { layer.close(ld); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '统计加载失败'), { icon: 2 }); });
     }
 
     $('#btnRefresh').on('click', function () {

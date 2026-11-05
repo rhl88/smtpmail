@@ -17,7 +17,7 @@
         .modal-bottom .button-container { display: inline-block; line-height: 52px; padding-right: 15px; }
         .modal-bottom .button-container button { margin-left: 10px; }
         .helper-tip { color: #999; font-size: 12px; margin-top: 4px; }
-        .notice-bar { background: #f0f7ff; border: 1px solid #cfe3ff; color: #31578a; padding: 8px 12px; border-radius: 3px; font-size: 13px; margin-bottom: 10px; }
+        .notice-bar { background: rgba(30, 159, 255, 0.08); border: 1px solid rgba(30, 159, 255, 0.35); color: #1e9fff; padding: 8px 12px; border-radius: 3px; font-size: 13px; margin-bottom: 10px; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
     </style>
@@ -93,6 +93,19 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         form = layui.form,
         layer = layui.layer;
 
+        // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
+    // 防重复提交锁（I9）：异步提交期间拦截后续触发
+    var __busy = false;
+    function busyLock() { if (__busy) { return true; } __busy = true; return false; }
+    function busyUnlock() { __busy = false; }
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -147,13 +160,13 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         url: API + '/accounts',
         method: 'get',
         page: { layout: ['count', 'prev', 'page', 'next', 'limit'], groups: 5, limit: 15, limits: [15, 30, 50, 100] },
-        skin: false,
+        skin: false, request: { pageName: 'page', limitName: 'per_page' },
         cols: cols,
         parseData: function (res) {
             return { code: res.code === 0 ? 0 : 1, msg: res.msg || '', count: res.count || 0, data: res.data || [] };
         },
         done: function () { hidePermButtons(); },
-        error: function () { layer.msg('列表加载失败', { icon: 2 }); }
+        error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '列表加载失败'), { icon: 2 }); }
     });
 
     form.on('submit(doSearch)', function (data) {
@@ -188,7 +201,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         resetForm();
 
         var doOpen = function () {
-            accountLayerIndex = layer.open({
+            accountLayerIndex = layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
                 type: 1,
                 title: editingId ? '编辑发信账号' : '新增发信账号',
                 area: ['760px', '600px'],
@@ -200,9 +213,10 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         };
 
         if (editingId) {
-            var ld = layer.load(1, { shade: 0.3 });
+            if (busyLock()) { return; }
+        var ld = layer.load(1, { shade: 0.3 });
             $.get(API + '/accounts/' + editingId, function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code !== 0) { layer.msg(res.message || '账号读取失败', { icon: 2 }); return; }
                 var d = res.data || {};
                 $('#accName').val(d.name || '');
@@ -220,7 +234,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                 $('#accIsDefault').val(String(d.is_default != null ? d.is_default : 0));
                 $('#accStatus').val(String(d.status != null ? d.status : 1));
                 doOpen();
-            }, 'json').fail(function () { layer.close(ld); layer.msg('账号读取失败', { icon: 2 }); });
+            }, 'json').fail(function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '账号读取失败'), { icon: 2 }); });
         } else {
             doOpen();
         }
@@ -258,6 +272,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
             layer.msg('请填写名称、编码与主机', { icon: 2 }); return;
         }
 
+        if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
         $.ajax({
             url: editingId ? (API + '/accounts/' + editingId) : (API + '/accounts'),
@@ -266,7 +281,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
             dataType: 'json',
             data: JSON.stringify(payload),
             success: function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code === 0) {
                     layer.close(accountLayerIndex);
                     layer.msg(res.message || '保存成功', { icon: 1, time: 1200 });
@@ -275,7 +290,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     layer.msg(res.message || '保存失败', { icon: 2, time: 2000 });
                 }
             },
-            error: function () { layer.close(ld); layer.msg('保存失败', { icon: 2 }); }
+            error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '保存失败'), { icon: 2 }); }
         });
     });
 
@@ -298,14 +313,15 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     if (res.code === 0) { layer.msg(res.message || '已设为默认', { icon: 1 }); table.reload('accountsTable'); }
                     else { layer.msg(res.message || '设置失败', { icon: 2 }); }
                 },
-                error: function () { layer.msg('设置失败', { icon: 2 }); }
+                error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '设置失败'), { icon: 2 }); }
             });
         } else if (layEvent === 'test') {
             layer.prompt({ title: '输入收件邮箱，发送一封测试信', formType: 0 }, function (value, index) {
                 var to = $.trim(value);
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { layer.msg('邮箱格式不正确', { icon: 2 }); return; }
                 layer.close(index);
-                var ld = layer.load(1, { shade: 0.3 });
+                if (busyLock()) { return; }
+        var ld = layer.load(1, { shade: 0.3 });
                 $.ajax({
                     url: API + '/accounts/' + data.id + '/test',
                     type: 'POST',
@@ -313,10 +329,10 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     dataType: 'json',
                     data: JSON.stringify({ to: to }),
                     success: function (res) {
-                        layer.close(ld);
+                        layer.close(ld); busyUnlock();
                         layer.msg(res.message || (res.code === 0 ? '测试信已发送' : '发送失败'), { icon: res.code === 0 ? 1 : 2, time: 2500 });
                     },
-                    error: function () { layer.close(ld); layer.msg('请求失败', { icon: 2 }); }
+                    error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '请求失败'), { icon: 2 }); }
                 });
             });
         } else if (layEvent === 'delete') {
@@ -330,7 +346,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                         if (res.code === 0) { layer.msg(res.message || '删除成功', { icon: 1 }, function () { table.reload('accountsTable'); }); }
                         else { layer.msg(res.message || '删除失败', { icon: 2 }); }
                     },
-                    error: function () { layer.msg('删除失败', { icon: 2 }); }
+                    error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '删除失败'), { icon: 2 }); }
                 });
             });
         }

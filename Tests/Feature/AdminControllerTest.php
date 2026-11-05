@@ -80,33 +80,4 @@ class AdminControllerTest extends SmtpmailTestCase
         $this->deleteJson('/admin/cmspro/smtpmail/api/templates/' . $template->id)
             ->assertOk()->assertJsonPath('code', 40001);
     }
-
-    /**
-     * 模拟超级管理员登录（super_admin 角色由系统权限中间件直接放行）
-     */
-    protected function actingAdmin(): AdminUser
-    {
-        $admin = AdminUser::create([
-            'username' => 'admin_' . uniqid(),
-            'password' => bcrypt('123456'),
-            'name' => '测试管理员',
-            'status' => 1,
-        ]);
-
-        $role = AdminRole::firstOrCreate(
-            ['code' => 'super_admin'],
-            [
-                'name' => '超级管理员',
-                'description' => '系统内置超级管理员',
-                'parent_id' => 0,
-                'sort' => 0,
-                'status' => 1,
-            ]
-        );
-        $admin->roles()->attach($role->id);
-
-        $this->actingAs($admin, 'admin');
-
-        return $admin;
-    }
 }

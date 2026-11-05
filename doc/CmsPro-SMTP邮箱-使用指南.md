@@ -1,7 +1,7 @@
 # CmsPro SMTP邮箱 · 使用指南
 
-> 版本：1.0.0 | 更新日期：2026-11-05
-> 应用版本：1.0.0 | 应用 ID：`cmspro.smtpmail`
+> 版本：1.0.1 | 更新日期：2026-11-05
+> 应用版本：1.0.1 | 应用 ID：`cmspro.smtpmail`
 
 本指南面向后台管理员，说明「SMTP邮箱」应用的安装、发信账号与模板配置、邮件发送、日志查看、队列与定时任务、以及卸载验证的完整使用流程。
 
@@ -141,7 +141,7 @@
 | 键名 | 标题 | 类型 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `api_enabled` | 开启 HTTP 接口 | switch | `0` | 开启后允许外部系统通过 `/api/smtpmail/` 调用发信与查询接口 |
-| `api_token` | 接口令牌 | password | 空 | 调用方需在请求头 `X-Smtpmail-Token` 中携带此令牌；留空表示禁止接口调用 |
+| `api_token` | 接口令牌 | password | 空 | 调用方需在请求头 `X-Smtpmail-Token` 中携带此令牌；保存后明文回显，清空提交视为不修改；留空表示禁止接口调用 |
 
 ### 3. 系统邮件模板映射（`system_templates`）
 
@@ -326,7 +326,7 @@ CmsproSmtpmail/
 │   ├── TakeoverContext.php
 │   ├── TemplateRenderer.php
 │   └── TemplateService.php
-├── Tests/                          # 应用测试（36 个用例，sqlite :memory: 隔离）
+├── Tests/                          # 应用测试（55 个用例，sqlite :memory: 隔离）
 │   ├── SmtpmailTestCase.php        # 测试基类
 │   ├── Feature/
 │   │   ├── ApiAndTakeoverTest.php
@@ -392,4 +392,5 @@ CmsproSmtpmail/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.0.1 | 2026-11-05 | 验收整改：设置接口 `ALLOWED_KEYS` 白名单；接口令牌按规范明文回显；后台接口强制 JSON 响应（校验失败返回 422，禁止 302）；提交防重复点击与统一错误提示；分页参数统一 `per_page`；应用级测试 41→55 个用例 |
 | 1.0.0 | 2026-11-05 | 首个版本：多账号管理、可视化模板、发送/定时/队列/批量群发、发送日志与统计看板、黑名单与退订、12 项配置、系统邮件运行时代理接管、队列与定时调度 |

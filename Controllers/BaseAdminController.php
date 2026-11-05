@@ -4,6 +4,7 @@ namespace App\Apps\CmsproSmtpmail\Controllers;
 
 use App\Apps\CmsproSmtpmail\Exceptions\SmtpmailException;
 use App\Http\Controllers\Controller;
+use App\Http\Responses\ApiResponse;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -29,7 +30,7 @@ abstract class BaseAdminController extends Controller
 
     protected function permissionDenied(string $message = '无权执行该操作'): JsonResponse
     {
-        return response()->json(['code' => 40301, 'message' => $message, 'data' => null]);
+        return response()->json(ApiResponse::error(40301, $message));
     }
 
     /**
@@ -37,12 +38,12 @@ abstract class BaseAdminController extends Controller
      */
     protected function success(mixed $data = null, string $message = '操作成功'): JsonResponse
     {
-        return response()->json(['code' => 0, 'message' => $message, 'data' => $data]);
+        return response()->json(ApiResponse::success($data, $message));
     }
 
     protected function fail(string $message, int $code = 40001): JsonResponse
     {
-        return response()->json(['code' => $code, 'message' => $message, 'data' => null]);
+        return response()->json(ApiResponse::error($code, $message));
     }
 
     /**

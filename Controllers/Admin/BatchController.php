@@ -31,7 +31,7 @@ class BatchController extends BaseAdminController
             app(BatchService::class)->paginate(
                 $request->input('status'),
                 $request->input('keyword'),
-                $this->pageSize($request->input('limit'))
+                $this->pageSize($request->input('per_page'))
             ),
             fn (SmtpmailBatch $b) => $b->toSummaryArray()
         ));
@@ -71,7 +71,7 @@ class BatchController extends BaseAdminController
         });
     }
 
-    public function cancel(int $id): JsonResponse
+    public function cancel($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();

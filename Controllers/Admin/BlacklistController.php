@@ -28,7 +28,7 @@ class BlacklistController extends BaseAdminController
         }
 
         return $this->run(fn () => $this->layui(
-            app(BlacklistService::class)->paginate($request->input('keyword'), $this->pageSize($request->input('limit'))),
+            app(BlacklistService::class)->paginate($request->input('keyword'), $this->pageSize($request->input('per_page'))),
             fn (SmtpmailBlacklist $b) => $b->toSummaryArray()
         ));
     }
@@ -48,7 +48,7 @@ class BlacklistController extends BaseAdminController
         ));
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();

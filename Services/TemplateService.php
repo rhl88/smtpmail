@@ -196,6 +196,15 @@ class TemplateService
             }
         }
 
+        if (! $creating) {
+            // 更新入口兜底校验：关键字段一旦出现，传空即拦截，避免把名称/主题/正文清空
+            foreach (['name', 'subject', 'body_html'] as $required) {
+                if (array_key_exists($required, $payload) && trim((string) $payload[$required]) === '') {
+                    throw new SmtpmailException('请完整填写模板名称、主题与 HTML 正文');
+                }
+            }
+        }
+
         if ($creating) {
             foreach (['code', 'name', 'subject', 'body_html'] as $required) {
                 if (empty($payload[$required])) {

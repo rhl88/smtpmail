@@ -63,6 +63,19 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         form = layui.form,
         layer = layui.layer;
 
+        // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
+    function parseError(xhr, fallback) {
+        if (xhr && xhr.status === 401) { return ''; }
+        try {
+            var res = JSON.parse(xhr.responseText || '{}');
+            if (res && res.message) { return String(res.message); }
+        } catch (e) { /* 非 JSON 响应，走兜底文案 */ }
+        return (xhr && xhr.responseText) ? String(xhr.responseText).slice(0, 120) : fallback;
+    }
+    // 防重复提交锁（I9）：异步提交期间拦截后续触发
+    var __busy = false;
+    function busyLock() { if (__busy) { return true; } __busy = true; return false; }
+    function busyUnlock() { __busy = false; }
     $.ajaxSetup({
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         statusCode: {
@@ -109,13 +122,13 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         url: API + '/blacklist',
         method: 'get',
         page: { layout: ['count', 'prev', 'page', 'next', 'limit'], groups: 5, limit: 15, limits: [15, 30, 50, 100] },
-        skin: false,
+        skin: false, request: { pageName: 'page', limitName: 'per_page' },
         cols: cols,
         parseData: function (res) {
             return { code: res.code === 0 ? 0 : 1, msg: res.msg || '', count: res.count || 0, data: res.data || [] };
         },
         done: function () { hidePermButtons(); },
-        error: function () { layer.msg('列表加载失败', { icon: 2 }); }
+        error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '列表加载失败'), { icon: 2 }); }
     });
 
     // ============ 新增邮箱弹窗 ============
@@ -125,7 +138,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
         $('#blEmail').val('');
         $('#blReason').val('');
-        blLayerIndex = layer.open({
+        blLayerIndex = layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1,
             title: '新增黑名单邮箱',
             area: ['520px', '300px'],
@@ -148,13 +161,14 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         };
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) { layer.msg('邮箱格式不正确', { icon: 2 }); return; }
 
+        if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
         $.ajax({
             url: API + '/blacklist',
             type: 'POST', contentType: 'application/json', dataType: 'json',
             data: JSON.stringify(payload),
             success: function (res) {
-                layer.close(ld);
+                layer.close(ld); busyUnlock();
                 if (res.code === 0) {
                     layer.close(blLayerIndex);
                     layer.msg(res.message || '已加入黑名单', { icon: 1, time: 1200 });
@@ -163,7 +177,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     layer.msg(res.message || '保存失败', { icon: 2, time: 2000 });
                 }
             },
-            error: function () { layer.close(ld); layer.msg('保存失败', { icon: 2 }); }
+            error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '保存失败'), { icon: 2 }); }
         });
     });
 
@@ -181,7 +195,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                     if (res.code === 0) { layer.msg(res.message || '删除成功', { icon: 1 }, function () { table.reload('blacklistTable'); }); }
                     else { layer.msg(res.message || '删除失败', { icon: 2 }); }
                 },
-                error: function () { layer.msg('删除失败', { icon: 2 }); }
+                error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '删除失败'), { icon: 2 }); }
             });
         });
     });

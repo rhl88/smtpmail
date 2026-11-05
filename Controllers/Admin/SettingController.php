@@ -18,6 +18,25 @@ class SettingController extends BaseAdminController
 
     private const CODE_PREFIX = 'app_cmspro_smtpmail_';
 
+    /**
+     * 设置白名单：与 manifest.json config_groups 声明的 12 个配置项一一对应，
+     * 仅接受明确列出的键，防止前端传入任意 code 篡改其他应用配置（12A.3）
+     */
+    private const ALLOWED_KEYS = [
+        'takeover_system_mail',
+        'use_queue',
+        'max_retries',
+        'retry_delay',
+        'rate_limit',
+        'log_retention_days',
+        'site_name',
+        'enable_blacklist',
+        'api_enabled',
+        'api_token',
+        'template_verify_code',
+        'template_password_reset',
+    ];
+
     public function index(): View
     {
         return view('cmspro.smtpmail::Admin.settings.index');
@@ -45,7 +64,7 @@ class SettingController extends BaseAdminController
                     'group' => $def['group'],
                     'title' => $def['title'],
                     'type' => $def['type'],
-                    'value' => $def['type'] === 'password' ? '' : $value,
+                    'value' => $value,
                     'tips' => $def['tips'],
                 ];
             }
@@ -55,7 +74,7 @@ class SettingController extends BaseAdminController
     }
 
     /**
-     * 保存设置（白名单键；密码类留空表示不修改）
+     * 保存设置（ALLOWED_KEYS 白名单键；密钥类字段明文回显，清空输入框提交表示不修改）
      */
     public function update(Request $request): JsonResponse
     {
@@ -64,7 +83,7 @@ class SettingController extends BaseAdminController
         }
 
         return $this->run(function () use ($request) {
-            $input = $request->all();
+            $input = $request->only(self::ALLOWED_KEYS);
             $changed = [];
 
             foreach ($this->definitions() as $key => $def) {
@@ -74,7 +93,7 @@ class SettingController extends BaseAdminController
 
                 $value = is_scalar($input[$key]) ? (string) $input[$key] : '';
                 if ($def['type'] === 'password' && $value === '') {
-                    continue; // 脱敏回填后留空，保持原令牌
+                    continue; // 明文回显后清空提交视为不修改，避免误清空令牌
                 }
 
                 ConfigItem::updateOrCreate(

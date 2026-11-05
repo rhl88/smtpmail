@@ -1,7 +1,7 @@
 # CmsPro SMTP邮箱 · 扩展指南
 
-> 版本：1.0.0 | 更新日期：2026-11-05
-> 应用版本：1.0.0 | 应用 ID：`cmspro.smtpmail`
+> 版本：1.0.1 | 更新日期：2026-11-05
+> 应用版本：1.0.1 | 应用 ID：`cmspro.smtpmail`
 
 本指南面向二次开发者，核心说明**其他应用如何调用本应用**：辅助函数、`MailService` 服务层、钩子点、Laravel 事件、HTTP 接口，以及「接管系统邮件」的实现原理。所有签名、参数与返回结构均取自应用内真实源码，未做任何臆造。
 
@@ -335,13 +335,13 @@ Event::listen(MessageFailed::class, function (MessageFailed $event): void {
 | `GET` | `/api/smtpmail/records` | `cmspro.smtpmail.api.records` | 发送记录 |
 | `GET` | `/api/smtpmail/status` | `cmspro.smtpmail.api.status` | 状态查询 |
 
-上述路由定义于 `Routes/api.php`，指向 `App\Apps\CmsproSmtpmail\Controllers\Api\ApiController`（`send` / `templates` / `records` / `status` 四个方法）。统一响应结构为 `{code:0, message, data}`，`code` 非 0 表示失败；错误码：`40301` 接口未开启、`40101` 令牌无效、`40001` 参数/业务错误、`50001` 系统异常。
+上述路由定义于 `Routes/api.php`，指向 `App\Apps\CmsproSmtpmail\Controllers\Api\ApiController`（`send` / `templates` / `records` / `status` 四个方法）。统一响应结构为 `{code:0, message, data, timestamp}`（由 `App\Http\Responses\ApiResponse` 生成），`code` 非 0 表示失败；错误码：`40301` 接口未开启、`40101` 令牌无效、`40001` 参数/业务错误、`50001` 系统异常。
 
 | 端点 | 请求体 / 查询参数 | `data` 结构 |
 |------|------------------|-------------|
 | `POST /send` | 模板模式 `{template_code, to, vars?, options?}`；直发模式 `{subject, html, text?, to, options?}`；`options` 可含 `cc/bcc/reply_to/attachments/headers/priority/account_code/scheduled_at/queue/source` | `{success, record_id, status, message}` |
 | `GET /templates` | 无 | 模板选项数组 `[{code,name,subject,variables,extracted_variables,is_system}]` |
-| `GET /records` | `status/keyword/date_from/date_to/limit` | `{total, page, data: 记录摘要数组}` |
+| `GET /records` | `status/keyword/date_from/date_to/per_page` | `{total, page, data: 记录摘要数组}` |
 | `GET /status` | 无 | `{app_id, stats, takeover_enabled, default_account}` |
 
 ### 3. curl 生产调用示例
@@ -420,4 +420,5 @@ curl -X GET 'https://your-domain.com/api/smtpmail/status' \
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.0.1 | 2026-11-05 | 验收整改：API 统一 `App\Http\Responses\ApiResponse`（响应新增 `timestamp` 字段）；`GET /records` 分页参数 `limit` 更名为 `per_page` |
 | 1.0.0 | 2026-11-05 | 首个版本：辅助函数与 MailService 服务层、完整 `$options` 参数、4 个钩子点、2 个 Laravel 事件、HTTP 接口、跨应用弱依赖前置检查、系统邮件运行时代理接管 |

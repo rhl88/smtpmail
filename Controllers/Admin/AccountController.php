@@ -28,7 +28,7 @@ class AccountController extends BaseAdminController
         }
 
         return $this->run(fn () => $this->layui(
-            app(AccountService::class)->paginate($request->input('keyword'), $this->pageSize($request->input('limit'))),
+            app(AccountService::class)->paginate($request->input('keyword'), $this->pageSize($request->input('per_page'))),
             fn (SmtpmailAccount $a) => $a->toSummaryArray()
         ));
     }
@@ -38,7 +38,7 @@ class AccountController extends BaseAdminController
         return $this->run(fn () => $this->success(app(AccountService::class)->options()));
     }
 
-    public function show(int $id): JsonResponse
+    public function show($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -60,7 +60,7 @@ class AccountController extends BaseAdminController
         });
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -73,7 +73,7 @@ class AccountController extends BaseAdminController
         });
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -86,7 +86,7 @@ class AccountController extends BaseAdminController
         });
     }
 
-    public function setDefault(int $id): JsonResponse
+    public function setDefault($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -102,7 +102,7 @@ class AccountController extends BaseAdminController
     /**
      * 发送测试邮件（同步，立即返回结果）
      */
-    public function test(Request $request, int $id): JsonResponse
+    public function test(Request $request, $id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();

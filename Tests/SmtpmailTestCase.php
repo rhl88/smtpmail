@@ -6,6 +6,8 @@ use App\Apps\CmsproSmtpmail\Models\SmtpmailAccount;
 use App\Apps\CmsproSmtpmail\Models\SmtpmailTemplate;
 use App\Apps\CmsproSmtpmail\ServiceProvider;
 use App\Apps\CmsproSmtpmail\Services\MailerFactory;
+use App\Models\AdminRole;
+use App\Models\AdminUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Mail\Transport\ArrayTransport;
 use Illuminate\Support\Facades\Cache;
@@ -92,5 +94,34 @@ abstract class SmtpmailTestCase extends TestCase
             'is_system' => 0,
             'remark' => '',
         ], $attrs));
+    }
+
+    /**
+     * 模拟超级管理员登录（super_admin 角色由系统权限中间件直接放行）
+     */
+    protected function actingAdmin(): AdminUser
+    {
+        $admin = AdminUser::create([
+            'username' => 'admin_' . uniqid(),
+            'password' => bcrypt('123456'),
+            'name' => '测试管理员',
+            'status' => 1,
+        ]);
+
+        $role = AdminRole::firstOrCreate(
+            ['code' => 'super_admin'],
+            [
+                'name' => '超级管理员',
+                'description' => '系统内置超级管理员',
+                'parent_id' => 0,
+                'sort' => 0,
+                'status' => 1,
+            ]
+        );
+        $admin->roles()->attach($role->id);
+
+        $this->actingAs($admin, 'admin');
+
+        return $admin;
     }
 }

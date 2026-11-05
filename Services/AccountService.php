@@ -272,8 +272,17 @@ class AccountService
                 'reply_to' => '',
                 'username' => '',
             ];
-        } elseif (isset($payload['from_address']) && ! filter_var($payload['from_address'], FILTER_VALIDATE_EMAIL)) {
-            throw new SmtpmailException('发件人邮箱格式不正确');
+        } else {
+            // 更新入口兜底校验：必填字段一旦出现，传空即拦截，避免把关键字段清空
+            foreach (['name', 'code', 'host', 'from_address'] as $required) {
+                if (array_key_exists($required, $payload) && trim((string) $payload[$required]) === '') {
+                    throw new SmtpmailException('请完整填写账号名称、编码、SMTP 主机与发件人地址');
+                }
+            }
+
+            if (isset($payload['from_address']) && ! filter_var($payload['from_address'], FILTER_VALIDATE_EMAIL)) {
+                throw new SmtpmailException('发件人邮箱格式不正确');
+            }
         }
 
         return $payload;

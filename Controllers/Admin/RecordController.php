@@ -35,13 +35,13 @@ class RecordController extends BaseAdminController
                 $request->input('keyword'),
                 $request->input('dateFrom'),
                 $request->input('dateTo'),
-                $this->pageSize($request->input('limit'))
+                $this->pageSize($request->input('per_page'))
             ),
             fn (SmtpmailRecord $r) => $r->toSummaryArray()
         ));
     }
 
-    public function show(int $id): JsonResponse
+    public function show($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -50,7 +50,7 @@ class RecordController extends BaseAdminController
         return $this->run(fn () => $this->success(app(RecordService::class)->find($id)->toDetailArray()));
     }
 
-    public function retry(int $id): JsonResponse
+    public function retry($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -63,7 +63,7 @@ class RecordController extends BaseAdminController
         });
     }
 
-    public function cancel(int $id): JsonResponse
+    public function cancel($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
@@ -75,7 +75,7 @@ class RecordController extends BaseAdminController
         ));
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy($id): JsonResponse
     {
         if (! $this->hasPermission(self::PERMISSION)) {
             return $this->permissionDenied();
