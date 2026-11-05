@@ -1,0 +1,223 @@
+{
+    "id": "cmspro.smtpmail",
+    "name": "SMTP邮箱",
+    "description": "独立 SMTP 邮件服务中台：多账号管理、可视化邮件模板、队列/定时/批量发送、发送日志与统计，提供 Service、钩子、HTTP API、事件四类扩展接口，内置验证码与找回密码模板。",
+    "version": "1.0.0",
+    "author": "CmsPro",
+    "author_url": "https://www.cmspro.cn",
+    "icon": "fa fa-envelope-o",
+    "require": {
+        "php": ">=8.3",
+        "cmspro": ">=5.0.0"
+    },
+    "dependencies": {
+        "app_ids": [],
+        "optional_app_ids": [],
+        "versions": []
+    },
+    "providers": [
+        "ServiceProvider"
+    ],
+    "hooks": "Hooks",
+    "install": "Install",
+    "menus": [
+        {
+            "code": "admin_cmspro_smtpmail",
+            "title": "SMTP邮箱",
+            "icon": "fa fa-envelope-o",
+            "order": 63,
+            "children": [
+                {
+                    "code": "admin_cmspro_smtpmail_send",
+                    "title": "发送邮件",
+                    "icon": "fa fa-paper-plane",
+                    "path": "/admin/cmspro/smtpmail/send",
+                    "order": 1
+                },
+                {
+                    "code": "admin_cmspro_smtpmail_templates",
+                    "title": "邮件模板",
+                    "icon": "fa fa-file-text-o",
+                    "path": "/admin/cmspro/smtpmail/templates",
+                    "order": 2
+                },
+                {
+                    "code": "admin_cmspro_smtpmail_accounts",
+                    "title": "发信账号",
+                    "icon": "fa fa-at",
+                    "path": "/admin/cmspro/smtpmail/accounts",
+                    "order": 3
+                },
+                {
+                    "code": "admin_cmspro_smtpmail_records",
+                    "title": "发送日志",
+                    "icon": "fa fa-list-alt",
+                    "path": "/admin/cmspro/smtpmail/records",
+                    "order": 4
+                },
+                {
+                    "code": "admin_cmspro_smtpmail_batches",
+                    "title": "批量群发",
+                    "icon": "fa fa-users",
+                    "path": "/admin/cmspro/smtpmail/batches",
+                    "order": 5
+                },
+                {
+                    "code": "admin_cmspro_smtpmail_blacklist",
+                    "title": "黑名单",
+                    "icon": "fa fa-ban",
+                    "path": "/admin/cmspro/smtpmail/blacklist",
+                    "order": 6
+                },
+                {
+                    "code": "admin_cmspro_smtpmail_dashboard",
+                    "title": "统计看板",
+                    "icon": "fa fa-bar-chart",
+                    "path": "/admin/cmspro/smtpmail/dashboard",
+                    "order": 7
+                },
+                {
+                    "code": "admin_cmspro_smtpmail_settings",
+                    "title": "应用设置",
+                    "icon": "fa fa-cog",
+                    "path": "/admin/cmspro/smtpmail/settings",
+                    "order": 8
+                }
+            ]
+        }
+    ],
+    "home_routes": {
+        "/smtpmail/unsubscribe": "邮件退订"
+    },
+    "config_groups": [
+        {
+            "name": "general",
+            "title": "发信基础设置",
+            "items": [
+                {
+                    "name": "takeover_system_mail",
+                    "title": "接管系统邮件",
+                    "type": "switch",
+                    "value": "0",
+                    "tips": "开启后，系统自带的注册验证码、找回密码邮件改用本应用的默认账号与内置模板发送（不修改框架代码）；关闭时系统邮件保持原生行为"
+                },
+                {
+                    "name": "use_queue",
+                    "title": "队列异步发送",
+                    "type": "switch",
+                    "value": "0",
+                    "tips": "开启后投递到系统队列由 worker 异步发送；需保证队列 worker 已运行。关闭时为同步发送"
+                },
+                {
+                    "name": "max_retries",
+                    "title": "失败最大重试次数",
+                    "type": "number",
+                    "value": "3",
+                    "tips": "发送失败后自动重试的次数，0 表示不重试"
+                },
+                {
+                    "name": "retry_delay",
+                    "title": "重试间隔（秒）",
+                    "type": "number",
+                    "value": "60",
+                    "tips": "每次重试之间的等待秒数"
+                },
+                {
+                    "name": "rate_limit",
+                    "title": "全局每分钟发信上限",
+                    "type": "number",
+                    "value": "60",
+                    "tips": "超过上限时本次发送进入等待队列，0 表示不限流；账号单独配置的限流优先"
+                },
+                {
+                    "name": "log_retention_days",
+                    "title": "日志保留天数",
+                    "type": "number",
+                    "value": "90",
+                    "tips": "发送记录保留天数，超期记录由清理命令删除，0 表示永不清理"
+                },
+                {
+                    "name": "site_name",
+                    "title": "站点名称",
+                    "type": "text",
+                    "value": "CmsPro",
+                    "tips": "模板变量 {{site_name}} 的默认值"
+                },
+                {
+                    "name": "enable_blacklist",
+                    "title": "启用黑名单",
+                    "type": "switch",
+                    "value": "1",
+                    "tips": "开启后发送前自动过滤黑名单中的邮箱地址"
+                }
+            ]
+        },
+        {
+            "name": "api",
+            "title": "接口访问设置",
+            "items": [
+                {
+                    "name": "api_enabled",
+                    "title": "开启 HTTP 接口",
+                    "type": "switch",
+                    "value": "0",
+                    "tips": "开启后允许外部系统通过 /api/smtpmail/ 调用发信与查询接口"
+                },
+                {
+                    "name": "api_token",
+                    "title": "接口令牌",
+                    "type": "password",
+                    "value": "",
+                    "tips": "调用方需在请求头 X-Smtpmail-Token 中携带此令牌；留空表示禁止接口调用"
+                }
+            ]
+        },
+        {
+            "name": "system_templates",
+            "title": "系统邮件模板映射",
+            "items": [
+                {
+                    "name": "template_verify_code",
+                    "title": "验证码模板编码",
+                    "type": "text",
+                    "value": "verify_code",
+                    "tips": "接管开启时，系统注册验证码邮件使用此编码的模板"
+                },
+                {
+                    "name": "template_password_reset",
+                    "title": "找回密码模板编码",
+                    "type": "text",
+                    "value": "password_reset",
+                    "tips": "接管开启时，系统找回密码邮件使用此编码的模板"
+                }
+            ]
+        }
+    ],
+    "permissions": [
+        {
+            "code": "cmspro.smtpmail.send",
+            "name": "SMTP邮箱-发送邮件"
+        },
+        {
+            "code": "cmspro.smtpmail.template",
+            "name": "SMTP邮箱-模板管理"
+        },
+        {
+            "code": "cmspro.smtpmail.account",
+            "name": "SMTP邮箱-账号管理"
+        },
+        {
+            "code": "cmspro.smtpmail.record",
+            "name": "SMTP邮箱-发送日志"
+        },
+        {
+            "code": "cmspro.smtpmail.batch",
+            "name": "SMTP邮箱-批量群发"
+        },
+        {
+            "code": "cmspro.smtpmail.setting",
+            "name": "SMTP邮箱-应用设置"
+        }
+    ],
+    "runtime_files": []
+}

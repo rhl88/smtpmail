@@ -1,0 +1,5 @@
+.env
+*.bak
+*.tmp
+venv/
+*.log

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="SMTP邮箱">
+  <rect x="4" y="4" width="112" height="112" rx="24" fill="#1e293b"/>
+  <rect x="26" y="36" width="68" height="48" rx="6" fill="none" stroke="#f1f5f9" stroke-width="4"/>
+  <path d="M28 40 L60 64 L92 40" fill="none" stroke="#60a5fa" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
