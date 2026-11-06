@@ -76,13 +76,13 @@
         {{# if(d.status == 1){ }}<span class="layui-badge layui-bg-green">启用</span>{{# } else { }}<span class="layui-badge layui-bg-gray">停用</span>{{# } }}
     </script>
     <script type="text/html" id="rowBar">
-        <a class="layui-btn layui-btn-xs" lay-event="edit" data-permission="cmspro.smtpmail.template"><i class="fa fa-pencil"></i> 编辑</a>
-        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="duplicate" data-permission="cmspro.smtpmail.template"><i class="fa fa-copy"></i> 复制</a>
-        <a class="layui-btn layui-btn-xs" lay-event="toggle" data-permission="cmspro.smtpmail.template"><i class="fa fa-power-off"></i> 启停</a>
-        <a class="layui-btn layui-btn-xs" lay-event="preview" data-permission="cmspro.smtpmail.template"><i class="fa fa-eye"></i> 预览</a>
-        <a class="layui-btn layui-btn-xs" lay-event="test" data-permission="cmspro.smtpmail.template"><i class="fa fa-paper-plane"></i> 测试</a>
+        <a class="layui-btn layui-btn-xs" lay-event="edit" data-permission="cmspro.smtpmail.template">编辑</a>
+        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="duplicate" data-permission="cmspro.smtpmail.template">复制</a>
+        <a class="layui-btn layui-btn-xs" lay-event="toggle" data-permission="cmspro.smtpmail.template">启停</a>
+        <a class="layui-btn layui-btn-xs" lay-event="preview" data-permission="cmspro.smtpmail.template">预览</a>
+        <a class="layui-btn layui-btn-xs" lay-event="test" data-permission="cmspro.smtpmail.template">测试</a>
         {{# if(d.is_system != 1){ }}
-        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete" data-permission="cmspro.smtpmail.template"><i class="fa fa-trash"></i> 删除</a>
+        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete" data-permission="cmspro.smtpmail.template">删除</a>
         {{# } }}
     </script>
     @endverbatim
