@@ -23,18 +23,6 @@ class SendController extends BaseAdminController
     /** 禁止作为邮件附件发送的服务端脚本后缀 */
     private const BLOCKED_EXTENSIONS = ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'pht', 'phar', 'cgi', 'pl', 'asp', 'aspx', 'jsp', 'jspx', 'htaccess', 'htpasswd'];
 
-    /**
-     * 内置默认变量定义：渲染时由 TemplateRenderer::withDefaults() 自动注入默认值，
-     * 中文名统一定义在此处下发，前端变量表单的内置变量 label 以此为准，
-     * 不再依赖各模板声明中写死的 label，新增内置变量只需维护本常量。
-     */
-    private const BUILTIN_VARIABLES = [
-        ['name' => 'site_name', 'label' => '站点名称'],
-        ['name' => 'year', 'label' => '年'],
-        ['name' => 'date', 'label' => '日期'],
-        ['name' => 'datetime', 'label' => '日期时间'],
-    ];
-
     public function index(): View
     {
         return view('cmspro.smtpmail::Admin.send.index');
@@ -48,7 +36,7 @@ class SendController extends BaseAdminController
         return $this->run(fn () => $this->success([
             'templates' => app(TemplateService::class)->options(),
             'accounts' => app(AccountService::class)->options(),
-            'builtin_variables' => self::BUILTIN_VARIABLES,
+            'builtin_variables' => TemplateService::builtinVariables(),
         ]));
     }
 

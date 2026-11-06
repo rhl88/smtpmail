@@ -191,7 +191,9 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
             return;
         }
         $.get(API + '/templates/options', function (res) {
-            if (res.code === 0) { templateOptionsCache = res.data || []; }
+            // 兼容历史纯数组与现行 {templates, builtin_variables} 两种结构
+            var d = res.data || {};
+            templateOptionsCache = Array.isArray(d) ? d : (d.templates || []);
             fillSelect($('#batTemplateCode'), templateOptionsCache || [], '请选择模板');
             // 选项到达后重渲染列表，使模板列由编码回退升级为名称显示
             table.reload('batchesTable');

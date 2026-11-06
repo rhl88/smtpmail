@@ -318,6 +318,23 @@ class ValidationRegressionTest extends SmtpmailTestCase
         }
     }
 
+    public function test_模板选项接口返回模板列表与内置变量定义(): void
+    {
+        $this->actingAdmin();
+        $this->makeTemplate(['code' => 'opt_tpl', 'name' => '选项模板']);
+
+        $response = $this->get('/admin/cmspro/smtpmail/api/templates/options');
+
+        $response->assertOk()->assertJsonPath('code', 0);
+        $templates = $response->json('data.templates');
+        $this->assertIsArray($templates);
+        $codes = array_column($templates, 'code');
+        $this->assertContains('opt_tpl', $codes);
+        $builtin = $response->json('data.builtin_variables');
+        $this->assertIsArray($builtin);
+        $this->assertContains('site_name', array_column($builtin, 'name'));
+    }
+
     public function test_记录摘要接口收件人嵌套数组被归一化为单层(): void
     {
         $record = new \App\Apps\CmsproSmtpmail\Models\SmtpmailRecord();

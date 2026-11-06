@@ -39,7 +39,10 @@ class TemplateController extends BaseAdminController
 
     public function options(): JsonResponse
     {
-        return $this->run(fn () => $this->success(app(TemplateService::class)->options()));
+        return $this->run(fn () => $this->success([
+            'templates' => app(TemplateService::class)->options(),
+            'builtin_variables' => TemplateService::builtinVariables(),
+        ]));
     }
 
     public function show($id): JsonResponse

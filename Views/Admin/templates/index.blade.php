@@ -269,37 +269,58 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
         return (typeof res.data === 'object') ? (res.data.html || '') : String(res.data);
     }
 
-    // 弹出预览变量填写表单：按模板声明的变量渲染输入框（左侧中文 label），确认后回调变量对象
-    function askVars(tpl, cb) {
+    // 内置变量中文表单名（后端统一下发，内置变量 label 以此为准，不再写死）
+    var builtinLabelMap = {};
+    $.get(API + '/templates/options', function (res) {
+        if (res.code !== 0) { return; }
+        var d = res.data || {};
+        (d.builtin_variables || []).forEach(function (bv) {
+            if (bv && typeof bv === 'object' && bv.name) {
+                builtinLabelMap[String(bv.name)] = String(bv.label || bv.name);
+            } else if (bv) {
+                builtinLabelMap[String(bv)] = String(bv);
+            }
+        });
+    }, 'json');
+
+    // 归一化模板变量为 {name, label} 列表：内置变量表单名以后端下发为准，其余用模板声明（含中文 label），再补正文提取到的 key
+    function normalizeVarList(tpl) {
         var declared = tpl ? (tpl.variables || []) : [];
         var extracted = tpl ? (tpl.extracted_variables || []) : [];
         if (typeof declared === 'string') {
             try { declared = JSON.parse(declared); } catch (e) { declared = []; }
         }
-        // 归一化为 {name, label} 列表：优先模板声明（含中文 label），再补正文提取到的 key
+        function resolveVarLabel(n, declaredLabel) {
+            if (builtinLabelMap[n]) { return builtinLabelMap[n]; }
+            return declaredLabel || n;
+        }
         var list = [], seen = {};
         (Array.isArray(declared) ? declared : []).forEach(function (v) {
             if (v && typeof v === 'object') {
                 var n = firstVal(v, ['name', 'key', 'var']);
                 if (!n) { return; }
-                list.push({ name: String(n), label: String(v.label || v.title || n) });
+                list.push({ name: String(n), label: resolveVarLabel(String(n), String(v.label || v.title || '')) });
                 seen[n] = true;
             } else if (v) {
                 var k = String(v);
-                list.push({ name: k, label: k });
+                list.push({ name: k, label: resolveVarLabel(k, '') });
                 seen[k] = true;
             }
         });
         (Array.isArray(extracted) ? extracted : []).forEach(function (v) {
             var n = (v && typeof v === 'object') ? firstVal(v, ['name', 'key', 'var', 'label']) : String(v);
             if (!n || seen[n]) { return; }
-            list.push({ name: String(n), label: String((v && typeof v === 'object') ? firstVal(v, ['label', 'title', 'name']) : n) });
+            list.push({ name: String(n), label: resolveVarLabel(String(n), String((v && typeof v === 'object') ? (firstVal(v, ['label', 'title', 'name']) || '') : '')) });
             seen[n] = true;
         });
+        return list;
+    }
 
-        var html = '<div style="padding:15px 18px;">';
+    // 变量输入表单 HTML：左侧中文 label，placeholder 按 key 提示
+    function varInputsHtml(list) {
+        var html = '';
         if (!list.length) {
-            html += '<div class="helper-tip">该模板未声明变量，将直接以空变量渲染预览。</div>';
+            html += '<div class="helper-tip">该模板未声明变量，将直接以空变量处理。</div>';
         } else {
             list.forEach(function (v) {
                 html += '<div class="layui-form-item">' +
@@ -310,17 +331,39 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
                 '</div>';
             });
         }
-        html += '</div>';
+        return html;
+    }
 
+    // 收集当前弹窗中的变量输入框为对象
+    function collectVarInputs() {
+        var vars = {};
+        $('.pv-var-input').each(function () { vars[$(this).data('var')] = $(this).val(); });
+        return vars;
+    }
+
+    // 弹出预览变量填写表单：按模板声明的变量渲染输入框（左侧中文 label），确认后回调变量对象
+    function askVars(tpl, cb) {
+        var list = normalizeVarList(tpl);
+        var html = '<div style="padding:15px 18px;">' + varInputsHtml(list) + '</div>';
+        if (!list.length) {
+            layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
+                type: 1,
+                title: '预览变量填写',
+                area: ['480px', 'auto'],
+                content: html,
+                btn: ['预览', '取消'],
+                yes: function (idx) { layer.close(idx); cb({}); }
+            });
+            return;
+        }
         layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1,
             title: '预览变量填写',
-            area: list.length ? ['560px', 'auto'] : ['480px', 'auto'],
+            area: ['560px', 'auto'],
             content: html,
             btn: ['预览', '取消'],
             yes: function (idx) {
-                var vars = {};
-                $('.pv-var-input').each(function () { vars[$(this).data('var')] = $(this).val(); });
+                var vars = collectVarInputs();
                 layer.close(idx);
                 cb(vars);
             }
@@ -486,35 +529,29 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
         });
     });
 
-    // 模板测试信弹窗：收件邮箱 + 变量 JSON
-    function openTestDialog(id) {
+    // 模板测试信弹窗：收件邮箱 + 按模板声明渲染的变量表单
+    function openTestDialog(data) {
+        var list = normalizeVarList(data);
+        var html = '<div style="padding:15px 18px;">' +
+            '<div class="layui-form-item"><label class="layui-form-label">收件邮箱</label>' +
+            '<div class="layui-input-block"><input type="text" id="tmpTestTo" class="layui-input" placeholder="接收测试信的邮箱地址"></div></div>' +
+            varInputsHtml(list) +
+            '<div class="helper-tip">变量留空表示以空值渲染占位符。</div></div>';
         layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1,
             title: '发送模板测试信',
-            area: ['520px', '340px'],
-            content: '<div style="padding:15px 18px;">' +
-                '<div class="layui-form-item"><label class="layui-form-label">收件邮箱</label>' +
-                '<div class="layui-input-block"><input type="text" id="tmpTestTo" class="layui-input" placeholder="接收测试信的邮箱地址"></div></div>' +
-                '<div class="layui-form-item"><label class="layui-form-label">变量 JSON</label>' +
-                '<div class="layui-input-block"><textarea id="tmpTestVars" class="layui-textarea" style="min-height:80px;" placeholder=\'可留空，如：{"code":"123456"}\'></textarea></div></div>' +
-                '<div class="helper-tip">变量用于渲染模板占位符，留空表示不带变量发送。</div></div>',
+            area: list.length ? ['560px', 'auto'] : ['520px', 'auto'],
+            content: html,
             btn: ['发送', '取消'],
             yes: function (idx) {
                 var to = $.trim($('#tmpTestTo').val());
-                var text = $.trim($('#tmpTestVars').val());
-                var vars = {};
+                var vars = collectVarInputs();
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { layer.msg('邮箱格式不正确', { icon: 2 }); return; }
-                if (text) {
-                    try {
-                        vars = JSON.parse(text);
-                        if (typeof vars !== 'object' || vars === null || Array.isArray(vars)) { throw new Error('格式错误'); }
-                    } catch (e) { layer.msg('变量 JSON 格式不正确', { icon: 2 }); return; }
-                }
                 layer.close(idx);
                 if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
                 $.ajax({
-                    url: API + '/templates/' + id + '/test',
+                    url: API + '/templates/' + data.id + '/test',
                     type: 'POST',
                     contentType: 'application/json',
                     dataType: 'json',
@@ -582,7 +619,7 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
                 });
             });
         } else if (layEvent === 'test') {
-            openTestDialog(data.id);
+            openTestDialog(data);
         } else if (layEvent === 'delete') {
             layer.confirm('确定删除模板「' + escapeHtml(data.name) + '」？', { icon: 3, title: '删除确认' }, function (idx) {
                 layer.close(idx);
