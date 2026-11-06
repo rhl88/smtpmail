@@ -1,7 +1,7 @@
 # CmsPro SMTP邮箱 · 扩展指南
 
-> 版本：1.0.2 | 更新日期：2026-11-05
-> 应用版本：1.0.2 | 应用 ID：`cmspro.smtpmail`
+> 版本：1.0.3 | 更新日期：2026-11-06
+> 应用版本：1.0.3 | 应用 ID：`cmspro.smtpmail`
 
 本指南面向二次开发者，核心说明**其他应用如何调用本应用**：辅助函数、`MailService` 服务层、钩子点、Laravel 事件、HTTP 接口，以及「接管系统邮件」的实现原理。所有签名、参数与返回结构均取自应用内真实源码，未做任何臆造。
 
@@ -420,5 +420,6 @@ curl -X GET 'https://your-domain.com/api/smtpmail/status' \
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.0.3 | 2026-11-06 | 新增 `user.after_register` 钩子消费：`welcome_mail` 开启时按 `welcome` 模板向新注册用户发信（无邮箱跳过、异常不阻断注册）；新增模板分类服务 `CategoryService`；发送页附件解析接口 `POST api/send/attachments/resolve`；后台接口统一强制 JSON 响应 |
 | 1.0.1 | 2026-11-05 | 验收整改：API 统一 `App\Http\Responses\ApiResponse`（响应新增 `timestamp` 字段）；`GET /records` 分页参数 `limit` 更名为 `per_page` |
 | 1.0.0 | 2026-11-05 | 首个版本：辅助函数与 MailService 服务层、完整 `$options` 参数、4 个钩子点、2 个 Laravel 事件、HTTP 接口、跨应用弱依赖前置检查、系统邮件运行时代理接管 |
