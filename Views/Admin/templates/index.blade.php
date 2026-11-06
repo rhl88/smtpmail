@@ -269,25 +269,58 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
         return (typeof res.data === 'object') ? (res.data.html || '') : String(res.data);
     }
 
-    // 弹出变量输入小窗，确认后回调变量对象（留空表示不带变量）
-    function askVars(cb) {
+    // 弹出预览变量填写表单：按模板声明的变量渲染输入框（左侧中文 label），确认后回调变量对象
+    function askVars(tpl, cb) {
+        var declared = tpl ? (tpl.variables || []) : [];
+        var extracted = tpl ? (tpl.extracted_variables || []) : [];
+        if (typeof declared === 'string') {
+            try { declared = JSON.parse(declared); } catch (e) { declared = []; }
+        }
+        // 归一化为 {name, label} 列表：优先模板声明（含中文 label），再补正文提取到的 key
+        var list = [], seen = {};
+        (Array.isArray(declared) ? declared : []).forEach(function (v) {
+            if (v && typeof v === 'object') {
+                var n = firstVal(v, ['name', 'key', 'var']);
+                if (!n) { return; }
+                list.push({ name: String(n), label: String(v.label || v.title || n) });
+                seen[n] = true;
+            } else if (v) {
+                var k = String(v);
+                list.push({ name: k, label: k });
+                seen[k] = true;
+            }
+        });
+        (Array.isArray(extracted) ? extracted : []).forEach(function (v) {
+            var n = (v && typeof v === 'object') ? firstVal(v, ['name', 'key', 'var', 'label']) : String(v);
+            if (!n || seen[n]) { return; }
+            list.push({ name: String(n), label: String((v && typeof v === 'object') ? firstVal(v, ['label', 'title', 'name']) : n) });
+            seen[n] = true;
+        });
+
+        var html = '<div style="padding:15px 18px;">';
+        if (!list.length) {
+            html += '<div class="helper-tip">该模板未声明变量，将直接以空变量渲染预览。</div>';
+        } else {
+            list.forEach(function (v) {
+                html += '<div class="layui-form-item">' +
+                    '<label class="layui-form-label" for="pvvar_' + escapeHtml(v.name) + '">' + escapeHtml(v.label) + '</label>' +
+                    '<div class="layui-input-block">' +
+                        '<input type="text" id="pvvar_' + escapeHtml(v.name) + '" class="layui-input pv-var-input" data-var="' + escapeHtml(v.name) + '" placeholder="填写 ' + escapeHtml(v.name) + ' 的值（留空渲染为空）">' +
+                    '</div>' +
+                '</div>';
+            });
+        }
+        html += '</div>';
+
         layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
             type: 1,
-            title: '预览变量（JSON，可留空）',
-            area: ['480px', '260px'],
-            content: '<div style="padding:15px 18px;">' +
-                '<textarea id="tmpVarsText" class="layui-textarea" style="min-height:96px;" placeholder=\'如：{"code":"123456","name":"张三"}\'></textarea>' +
-                '<div class="helper-tip">留空表示使用空变量渲染；须为合法 JSON 对象。</div></div>',
-            btn: ['确定', '取消'],
+            title: '预览变量填写',
+            area: list.length ? ['560px', 'auto'] : ['480px', 'auto'],
+            content: html,
+            btn: ['预览', '取消'],
             yes: function (idx) {
-                var text = $.trim($('#tmpVarsText').val());
                 var vars = {};
-                if (text) {
-                    try {
-                        vars = JSON.parse(text);
-                        if (typeof vars !== 'object' || vars === null || Array.isArray(vars)) { throw new Error('格式错误'); }
-                    } catch (e) { layer.msg('变量 JSON 格式不正确', { icon: 2 }); return; }
-                }
+                $('.pv-var-input').each(function () { vars[$(this).data('var')] = $(this).val(); });
                 layer.close(idx);
                 cb(vars);
             }
@@ -533,7 +566,7 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
                 error: function (xhr) { if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '切换失败'), { icon: 2 }); }
             });
         } else if (layEvent === 'preview') {
-            askVars(function (vars) {
+            askVars(data, function (vars) {
                 if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
                 $.ajax({
