@@ -19,7 +19,10 @@
         .helper-tip { color: #999; font-size: 12px; margin-top: 4px; }
         .tpl-notice { background: rgba(255, 184, 0, 0.08); border: 1px solid rgba(255, 184, 0, 0.35); color: #ffb800; padding: 10px 14px; border-radius: 3px; font-size: 13px; line-height: 1.8; margin-bottom: 10px; }
         /* HTML 正文采用代码风格编辑区 */
-        .code-editor { font-size: 12px; line-height: 1.6; background: whitesmoke; color: #5f5f5f; min-height: 190px; }
+        .code-editor { font-size: 12px; line-height: 1.6; background: whitesmoke; color: #5f5f5f; min-height: 220px; }
+        /* HTML 正文三态编辑器：代码 / 可视化编辑 / 预览 */
+        .tpl-body-tab .layui-tab-title { border-bottom: 1px solid #e6e6e6; }
+        .body-frame { display: block; width: 100%; height: 220px; border: 1px solid #e6e6e6; background: #fff; box-sizing: border-box; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
     </style>
@@ -94,11 +97,12 @@
 <script src="{{ asset('CmsProUi/component/layui/layui.js') }}"></script>
 <script src="{{ asset('CmsProUi/component/pear/pear.js') }}"></script>
 <script>
-layui.use(['jquery', 'table', 'form', 'layer'], function () {
+layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
     var $ = layui.jquery,
         table = layui.table,
         form = layui.form,
-        layer = layui.layer;
+        layer = layui.layer,
+        element = layui.element;
 
         // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
     function parseError(xhr, fallback) {
@@ -141,6 +145,67 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         }
         return '';
     }
+
+    // ============ HTML 正文三态编辑器（代码 / 可视化编辑 / 预览） ============
+    var activeBodyTab = 'code';
+    var visualWasFullDoc = false;
+
+    // 判断源码是否为完整 HTML 文档（可视化回写时保留文档结构，避免浏览器自动补全破坏原结构）
+    function isFullDoc(html) { return /<html[\s>]/i.test(String(html || '')); }
+
+    // 向隔离 iframe 写入文档；editable 为 true 时开启所见即所得编辑
+    function writeBodyFrame(id, html, editable) {
+        try {
+            var frame = document.getElementById(id);
+            if (!frame || !frame.contentWindow) { return; }
+            var doc = frame.contentWindow.document;
+            doc.open();
+            doc.write(html || '');
+            doc.close();
+            doc.designMode = editable ? 'on' : 'off';
+        } catch (e) { /* iframe 未就绪时忽略 */ }
+    }
+
+    // 进入可视化编辑：以「代码」页当前内容初始化
+    function loadVisual() {
+        var html = $('#tplBodyHtml').val();
+        visualWasFullDoc = isFullDoc(html);
+        writeBodyFrame('tplBodyVisual', html, true);
+    }
+
+    // 离开可视化编辑：回写 iframe 当前文档到代码区
+    function saveVisual() {
+        try {
+            var doc = document.getElementById('tplBodyVisual').contentWindow.document;
+            var html = visualWasFullDoc ? doc.documentElement.outerHTML : doc.body.innerHTML;
+            $('#tplBodyHtml').val(html);
+        } catch (e) { /* iframe 未初始化时忽略 */ }
+    }
+
+    // 进入预览：按「代码」页当前内容实时渲染
+    function loadPreview() {
+        var html = $.trim($('#tplBodyHtml').val());
+        writeBodyFrame('tplBodyPreview', html || '<p style="padding:24px;color:#999;">（暂无 HTML 内容）</p>', false);
+    }
+
+    // 重置编辑器：清空代码与两个 iframe，切回「代码」标签
+    function resetBodyEditor() {
+        activeBodyTab = 'code';
+        visualWasFullDoc = false;
+        try { element.tabChange('bodyTab', 0); } catch (e) { /* element 未就绪时忽略 */ }
+        writeBodyFrame('tplBodyVisual', '', true);
+        writeBodyFrame('tplBodyPreview', '', false);
+    }
+
+    // 标签切换时实时同步内容，保证三态所见一致
+    element.on('tab(bodyTab)', function (data) {
+        var target = data.index === 0 ? 'code' : (data.index === 1 ? 'visual' : 'preview');
+        if (target === activeBodyTab) { return; }
+        if (activeBodyTab === 'visual') { saveVisual(); }
+        if (target === 'visual') { loadVisual(); }
+        if (target === 'preview') { loadPreview(); }
+        activeBodyTab = target;
+    });
 
     // 权限判断与按钮隐藏
     function hasPerm(code) { return !window.hasPermission || window.hasPermission(code); }
@@ -238,7 +303,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         { field: 'subject', title: '主题', minWidth: 180, templet: function (d) { return escapeHtml(d.subject || ''); } },
         { field: 'is_system', title: '类型', width: 90, align: 'center', templet: '#systemTpl' },
         { field: 'status', title: '状态', width: 80, align: 'center', templet: '#statusTpl' },
-        { field: 'updated_at', title: '更新时间', width: 165 },
+        { field: 'update_time', title: '更新时间', width: 165, templet: function (d) { return escapeHtml(d.update_time || d.updated_at || ''); } },
         { title: '操作', width: 350, toolbar: '#rowBar', fixed: 'right' }
     ]];
 
@@ -291,6 +356,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         $('#tplCategory').val('');
         $('#tplSubject').val('');
         $('#tplBodyHtml').val('');
+        resetBodyEditor();
         $('#tplBodyText').val('');
         $('#tplVars').val('');
         $('#tplStatus').val('1');

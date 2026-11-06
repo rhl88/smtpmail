@@ -30,8 +30,27 @@
             <div class="layui-form-item">
                 <label class="layui-form-label">HTML 正文</label>
                 <div class="layui-input-block">
-                    <textarea id="tplBodyHtml" class="layui-textarea code-editor" placeholder="填写完整的 HTML 邮件内容"></textarea>
-                    <div class="helper-tip">使用 @{{ 变量名 }} 作为占位符；保存后可在列表中点击「预览」查看渲染效果。</div>
+                    <div class="layui-tab layui-tab-brief tpl-body-tab" lay-filter="bodyTab">
+                        <ul class="layui-tab-title">
+                            <li class="layui-this">代码</li>
+                            <li>可视化编辑</li>
+                            <li>预览</li>
+                        </ul>
+                        <div class="layui-tab-content">
+                            <div class="layui-tab-item layui-show">
+                                <textarea id="tplBodyHtml" class="layui-textarea code-editor" placeholder="填写完整的 HTML 邮件内容"></textarea>
+                            </div>
+                            <div class="layui-tab-item">
+                                <iframe id="tplBodyVisual" class="body-frame" title="可视化编辑区"></iframe>
+                                <div class="helper-tip">所见即所得编辑，切换到其他标签页时自动同步回代码。</div>
+                            </div>
+                            <div class="layui-tab-item">
+                                <iframe id="tplBodyPreview" class="body-frame" title="预览区"></iframe>
+                                <div class="helper-tip">按当前代码实时渲染，隔离展示不影响后台页面样式。</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="helper-tip">使用 @{{ 变量名 }} 作为占位符；三个标签页可实时切换，内容自动同步，保存以「代码」页内容为准。</div>
                 </div>
             </div>
             <div class="layui-form-item">
