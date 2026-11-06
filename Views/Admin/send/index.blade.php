@@ -260,6 +260,7 @@ layui.use(['jquery', 'form', 'layer', 'upload'], function () {
     }
 
     // 加载模板与账号下拉
+    var builtinLabelMap = {}; // 后端统一下发的内置变量中文表单名（site_name=站点名称 等，不再写死在前端）
     function loadOptions() {
         $.get(API + '/send/options', function (res) {
             if (res.code !== 0) { layer.msg(res.message || '选项加载失败', { icon: 2 }); return; }
@@ -267,6 +268,14 @@ layui.use(['jquery', 'form', 'layer', 'upload'], function () {
             var templates = d.templates || d.template_options || d.template_list || [];
             var accounts = d.accounts || d.account_options || d.account_list || [];
             templateList = templates;
+            builtinLabelMap = {};
+            (d.builtin_variables || []).forEach(function (bv) {
+                if (bv && typeof bv === 'object' && bv.name) {
+                    builtinLabelMap[String(bv.name)] = String(bv.label || bv.name);
+                } else if (bv) {
+                    builtinLabelMap[String(bv)] = String(bv);
+                }
+            });
             fillSelect($('#sendTemplate'), templates, '不使用模板（直发）', ['code', 'value', 'id'], ['name', 'label', 'title']);
             fillSelect($('#sendAccountCode'), accounts, '跟随默认账号', ['code', 'value', 'id'], ['name', 'label', 'title']);
             toggleMode();
@@ -294,24 +303,28 @@ layui.use(['jquery', 'form', 'layer', 'upload'], function () {
         if (typeof declared === 'string') {
             try { declared = JSON.parse(declared); } catch (e) { declared = []; }
         }
-        // 归一化为 {name, label} 列表：优先模板声明（含中文 label），再补正文提取到的 key
+        // 归一化为 {name, label} 列表：内置变量表单名以后端下发为准，其余用模板声明（含中文 label），再补正文提取到的 key
+        function resolveVarLabel(n, declaredLabel) {
+            if (builtinLabelMap[n]) { return builtinLabelMap[n]; }
+            return declaredLabel || n;
+        }
         var list = [], seen = {};
         (Array.isArray(declared) ? declared : []).forEach(function (v) {
             if (v && typeof v === 'object') {
                 var n = firstVal(v, ['name', 'key', 'var']);
                 if (!n) { return; }
-                list.push({ name: String(n), label: String(v.label || v.title || n) });
+                list.push({ name: String(n), label: resolveVarLabel(String(n), String(v.label || v.title || '')) });
                 seen[n] = true;
             } else if (v) {
                 var k = String(v);
-                list.push({ name: k, label: k });
+                list.push({ name: k, label: resolveVarLabel(k, '') });
                 seen[k] = true;
             }
         });
         (Array.isArray(extracted) ? extracted : []).forEach(function (v) {
             var n = (v && typeof v === 'object') ? firstVal(v, ['name', 'key', 'var', 'label']) : String(v);
             if (!n || seen[n]) { return; }
-            list.push({ name: String(n), label: String((v && typeof v === 'object') ? firstVal(v, ['label', 'title', 'name']) : n) });
+            list.push({ name: String(n), label: resolveVarLabel(String(n), String((v && typeof v === 'object') ? (firstVal(v, ['label', 'title', 'name']) || '') : '')) });
             seen[n] = true;
         });
         if (!list.length) { $wrap.append('<div class="helper-tip">该模板未声明变量，可留空直接发送。</div>'); return; }

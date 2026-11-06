@@ -300,6 +300,24 @@ class ValidationRegressionTest extends SmtpmailTestCase
 
     // ===== 收件人列表归一化（兼容历史嵌套 JSON 编码脏数据） =====
 
+    public function test_发送页选项接口内置变量携带中文表单名(): void
+    {
+        $this->actingAdmin();
+
+        $response = $this->get('/admin/cmspro/smtpmail/api/send/options');
+
+        $response->assertOk()->assertJsonPath('code', 0);
+        $builtin = $response->json('data.builtin_variables');
+        $this->assertIsArray($builtin);
+        $names = array_column($builtin, 'name');
+        $this->assertContains('site_name', $names);
+        $this->assertContains('year', $names);
+        foreach ($builtin as $item) {
+            $this->assertArrayHasKey('label', $item);
+            $this->assertNotSame('', (string) $item['label']);
+        }
+    }
+
     public function test_记录摘要接口收件人嵌套数组被归一化为单层(): void
     {
         $record = new \App\Apps\CmsproSmtpmail\Models\SmtpmailRecord();
