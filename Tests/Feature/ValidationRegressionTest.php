@@ -243,4 +243,34 @@ class ValidationRegressionTest extends SmtpmailTestCase
                 ->assertSee('<!DOCTYPE html>', false);
         }
     }
+
+    // ===== 收件人列表归一化（兼容历史嵌套 JSON 编码脏数据） =====
+
+    public function test_记录摘要接口收件人嵌套数组被归一化为单层(): void
+    {
+        $record = new \App\Apps\CmsproSmtpmail\Models\SmtpmailRecord();
+        $record->setRawAttributes([
+            'to_addresses' => json_encode([['a@x.com', 'b@x.com']]),
+            'subject' => '归一化测试',
+        ]);
+
+        $summary = $record->toSummaryArray();
+
+        $this->assertSame(['a@x.com', 'b@x.com'], $summary['to_addresses']);
+    }
+
+    public function test_记录详情接口抄送嵌套数组被归一化为单层(): void
+    {
+        $record = new \App\Apps\CmsproSmtpmail\Models\SmtpmailRecord();
+        $record->setRawAttributes([
+            'to_addresses' => json_encode(['a@x.com']),
+            'cc' => json_encode([['c1@x.com', 'c2@x.com']]),
+            'subject' => '详情归一化测试',
+        ]);
+
+        $detail = $record->toDetailArray();
+
+        $this->assertSame(['a@x.com'], $detail['to_addresses']);
+        $this->assertSame(['c1@x.com', 'c2@x.com'], $detail['cc']);
+    }
 }

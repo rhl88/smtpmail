@@ -106,7 +106,7 @@ class SmtpmailRecord extends BaseModel
             'id' => (int) $this->id,
             'template_code' => (string) $this->template_code,
             'subject' => (string) $this->subject,
-            'to_addresses' => $this->to_addresses ?? [],
+            'to_addresses' => $this->flattenEmailList($this->to_addresses),
             'from_address' => (string) $this->from_address,
             'status' => (string) $this->status,
             'status_text' => self::statusMap()[$this->status] ?? $this->status,
@@ -127,9 +127,9 @@ class SmtpmailRecord extends BaseModel
         return array_merge($this->toSummaryArray(), [
             'body_html' => (string) $this->body_html,
             'body_text' => (string) $this->body_text,
-            'cc' => $this->cc ?? [],
-            'bcc' => $this->bcc ?? [],
-            'reply_to' => $this->reply_to ?? [],
+            'cc' => $this->flattenEmailList($this->cc),
+            'bcc' => $this->flattenEmailList($this->bcc),
+            'reply_to' => $this->flattenEmailList($this->reply_to),
             'from_name' => (string) $this->from_name,
             'attachments' => $this->attachments ?? [],
             'headers' => $this->headers ?? [],
@@ -138,5 +138,28 @@ class SmtpmailRecord extends BaseModel
             'batch_id' => $this->batch_id !== null ? (int) $this->batch_id : null,
             'operator' => (string) $this->operator,
         ]);
+    }
+
+    /**
+     * 归一化邮箱列表：兼容历史双重 JSON 编码产生的嵌套数组，统一输出一层字符串数组
+     *
+     * @return list<string>
+     */
+    protected function flattenEmailList(mixed $list): array
+    {
+        $flat = [];
+        foreach ((array) ($list ?? []) as $item) {
+            if (is_array($item)) {
+                foreach ($item as $sub) {
+                    if (is_scalar($sub)) {
+                        $flat[] = (string) $sub;
+                    }
+                }
+            } elseif (is_scalar($item)) {
+                $flat[] = (string) $item;
+            }
+        }
+
+        return array_values(array_unique($flat));
     }
 }

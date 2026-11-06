@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="{{ asset('Admin/css/reset.css') }}">
     <style>
         /* 详情弹窗：上部元信息 + 下部隔离正文 iframe */
+        /* 详情弹窗内容容器：固定为弹窗内容区高度（640 - 42 标题栏），flex 分配后 iframe 撑满剩余空间不留白 */
+        #recordDetail { height: 598px; overflow: hidden; }
         .detail-wrap { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
         .detail-meta { flex: 0 0 auto; padding: 10px 15px; border-bottom: 1px solid #e6e6e6; background: whitesmoke; font-size: 13px; line-height: 1.9; color: #5f5f5f; }
         .detail-meta .meta-label { color: #999; margin-right: 4px; }
@@ -142,6 +144,23 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         });
     }
 
+    // 收件人列表格式化：兼容字符串 / 数组 / 历史嵌套数组（如 [["a@x.com","b@x.com"]]）
+    function fmtTo(list) {
+        var flat = [];
+        var raw = list == null ? [] : (Object.prototype.toString.call(list) === '[object Array]' ? list : [list]);
+        raw.forEach(function (item) {
+            if (item == null) { return; }
+            if (Object.prototype.toString.call(item) === '[object Array]') {
+                item.forEach(function (sub) {
+                    if (sub != null && typeof sub !== 'object') { flat.push(String(sub)); }
+                });
+            } else if (typeof item !== 'object') {
+                flat.push(String(item));
+            }
+        });
+        return flat.join('、');
+    }
+
     // 权限判断与按钮隐藏
     function hasPerm(code) { return !window.hasPermission || window.hasPermission(code); }
     function hidePermButtons() {
@@ -165,7 +184,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
     var cols = [[
         { field: 'id', title: 'ID', width: 90, align: 'center' },
         { field: 'subject', title: '主题', minWidth: 180, templet: function (d) { return escapeHtml(d.subject || ''); } },
-        { field: 'to', title: '收件人', minWidth: 180, templet: function (d) { return escapeHtml(d.to || d.to_address || d.recipient || d.email || ''); } },
+        { field: 'to_addresses', title: '收件人', minWidth: 180, templet: function (d) { return escapeHtml(fmtTo(d.to_addresses)); } },
         { field: 'status', title: '状态', width: 95, align: 'center', templet: '#statusTpl' },
         { field: 'retry_count', title: '重试次数', width: 95, align: 'center', templet: function (d) {
             return d.retry_count != null ? d.retry_count : (d.retries != null ? d.retries : 0);
@@ -222,7 +241,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
             var d = res.data || {};
             var meta = '' +
                 '<div><span class="meta-label">主题：</span>' + escapeHtml(d.subject || '') + '</div>' +
-                '<div><span class="meta-label">收件人：</span>' + escapeHtml(d.to || d.to_address || d.recipient || '') + '</div>' +
+                '<div><span class="meta-label">收件人：</span>' + escapeHtml(fmtTo(d.to_addresses)) + '</div>' +
                 '<div><span class="meta-label">状态：</span>' + escapeHtml(d.status_text || d.status || '') +
                 '　<span class="meta-label">重试次数：</span>' + escapeHtml(d.retry_count != null ? d.retry_count : 0) + '</div>' +
                 '<div><span class="meta-label">时间：</span>' + escapeHtml(d.created_at || d.sent_at || '') +
