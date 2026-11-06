@@ -18,7 +18,8 @@
             <div class="layui-form-item">
                 <label class="layui-form-label">分类</label>
                 <div class="layui-input-block">
-                    <input type="text" id="tplCategory" class="layui-input" placeholder="选填，如：通知 / 营销">
+                    <select id="tplCategory"></select>
+                    <div class="helper-tip">下拉数据来自「分类管理」维护的分类；选填。</div>
                 </div>
             </div>
             <div class="layui-form-item">

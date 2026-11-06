@@ -3,6 +3,7 @@
 use App\Apps\CmsproSmtpmail\Controllers\Admin\AccountController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\BatchController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\BlacklistController;
+use App\Apps\CmsproSmtpmail\Controllers\Admin\CategoryController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\DashboardController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\RecordController;
 use App\Apps\CmsproSmtpmail\Controllers\Admin\SendController;
@@ -48,6 +49,13 @@ Route::prefix('api')->middleware(ForceJsonResponse::class)->name('api.')->group(
     // 邮件模板
     Route::get('/templates/options', [TemplateController::class, 'options'])->name('templates.options');
     Route::get('/templates', [TemplateController::class, 'list'])->name('templates.list');
+
+    // 模板分类
+    Route::get('/template-categories/options', [CategoryController::class, 'options'])->name('categories.options');
+    Route::get('/template-categories', [CategoryController::class, 'list'])->name('categories.list');
+    Route::post('/template-categories', [CategoryController::class, 'store'])->name('categories.store');
+    Route::put('/template-categories/{id}', [CategoryController::class, 'update'])->whereNumber('id')->name('categories.update');
+    Route::delete('/template-categories/{id}', [CategoryController::class, 'destroy'])->whereNumber('id')->name('categories.destroy');
     Route::get('/templates/{id}', [TemplateController::class, 'show'])->whereNumber('id')->name('templates.show');
     Route::post('/templates/{id}/duplicate', [TemplateController::class, 'duplicate'])->whereNumber('id')->name('templates.duplicate');
     Route::post('/templates/{id}/toggle', [TemplateController::class, 'toggle'])->whereNumber('id')->name('templates.toggle');

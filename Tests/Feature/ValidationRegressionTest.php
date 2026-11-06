@@ -298,7 +298,56 @@ class ValidationRegressionTest extends SmtpmailTestCase
         }
     }
 
-    // ===== 收件人列表归一化（兼容历史嵌套 JSON 编码脏数据） =====
+    // ===== 模板分类管理 =====
+
+    public function test_分类创建成功且重名被拒绝(): void
+    {
+        $this->actingAdmin();
+
+        $create = $this->post('/admin/cmspro/smtpmail/api/template-categories', ['name' => '通知']);
+        $create->assertOk()->assertJsonPath('code', 0);
+        $id = $create->json('data.id');
+
+        $this->post('/admin/cmspro/smtpmail/api/template-categories', ['name' => '通知'])
+            ->assertOk()->assertJsonPath('code', 40001);
+
+        $list = $this->get('/admin/cmspro/smtpmail/api/template-categories');
+        $names = array_column($list->json('data'), 'name');
+        $this->assertContains('通知', $names);
+        $this->assertSame(1, count($names));
+        $this->assertNotNull($id);
+    }
+
+    public function test_分类更名同步已使用模板且占用分类不可删除(): void
+    {
+        $this->actingAdmin();
+        $tpl = $this->makeTemplate(['code' => 'cat_tpl', 'category' => '通知']);
+        $id = $this->post('/admin/cmspro/smtpmail/api/template-categories', ['name' => '通知'])->json('data.id');
+
+        $this->put('/admin/cmspro/smtpmail/api/template-categories/' . $id, ['name' => '公告'])
+            ->assertOk()->assertJsonPath('code', 0);
+        $this->assertSame('公告', $tpl->fresh()->category);
+
+        $this->delete('/admin/cmspro/smtpmail/api/template-categories/' . $id)
+            ->assertOk()->assertJsonPath('code', 40001);
+
+        // 清空占用后可删除
+        \App\Apps\CmsproSmtpmail\Models\SmtpmailTemplate::query()->where('code', 'cat_tpl')->update(['category' => '']);
+        $this->delete('/admin/cmspro/smtpmail/api/template-categories/' . $id)
+            ->assertOk()->assertJsonPath('code', 0);
+    }
+
+    public function test_分类选项合并模板表历史自由文本分类(): void
+    {
+        $this->actingAdmin();
+        $this->makeTemplate(['code' => 'legacy_tpl', 'category' => '营销']);
+
+        $response = $this->get('/admin/cmspro/smtpmail/api/template-categories/options');
+
+        $response->assertOk()->assertJsonPath('code', 0);
+        $names = array_column($response->json('data'), 'name');
+        $this->assertContains('营销', $names);
+    }
 
     public function test_发送页选项接口内置变量携带中文表单名(): void
     {

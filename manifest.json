@@ -2,7 +2,7 @@
     "id": "cmspro.smtpmail",
     "name": "SMTP邮箱",
     "description": "独立 SMTP 邮件服务中台：多账号管理、可视化邮件模板、队列/定时/批量发送、发送日志与统计，提供 Service、钩子、HTTP API、事件四类扩展接口，内置验证码与找回密码模板。",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "author": "CmsPro",
     "author_url": "https://www.cmspro.cn",
     "icon": "fa fa-envelope-o",

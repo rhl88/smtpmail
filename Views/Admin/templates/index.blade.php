@@ -23,6 +23,10 @@
         /* HTML 正文三态编辑器：代码 / 可视化编辑 / 预览 */
         .tpl-body-tab .layui-tab-title { border-bottom: 1px solid #e6e6e6; }
         .body-frame { display: block; width: 100%; height: 220px; border: 1px solid #e6e6e6; background: #fff; box-sizing: border-box; }
+        /* 分类管理弹窗列表 */
+        .category-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid #e6e6e6; font-size: 13px; color: #5f5f5f; }
+        .category-item .category-actions a { margin-left: 12px; cursor: pointer; color: #1e9fff; }
+        .category-item .category-actions a.cat-del { color: #ff5722; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
     </style>
@@ -51,6 +55,7 @@
                         <button class="layui-btn layui-btn-normal" lay-submit lay-filter="doSearch"><i class="fa fa-search"></i> 搜索</button>
                     </div>
                     <div class="layui-inline" style="float:right;">
+                        <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" id="btnCategoryMgr" data-permission="cmspro.smtpmail.template"><i class="fa fa-tags"></i> 分类管理</button>
                         <button type="button" class="layui-btn layui-btn-sm" id="btnCreate" data-permission="cmspro.smtpmail.template"><i class="fa fa-plus"></i> 新建模板</button>
                     </div>
                 </div>
@@ -245,6 +250,134 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
         }, 'json');
     }
     loadAccountOptions();
+
+    // ============ 模板分类（下拉选项 + 分类管理弹窗） ============
+    var categoryOptionsCache = null;
+    function loadCategoryOptions(cb) {
+        if (categoryOptionsCache) {
+            fillSelect($('#tplCategory'), categoryOptionsCache, '选填，不选择分类');
+            if (cb) { cb(); }
+            return;
+        }
+        $.get(API + '/template-categories/options', function (res) {
+            if (res.code === 0) { categoryOptionsCache = res.data || []; }
+            fillSelect($('#tplCategory'), categoryOptionsCache || [], '选填，不选择分类');
+            if (cb) { cb(); }
+        }, 'json');
+    }
+    loadCategoryOptions();
+
+    var categoryLayerIndex = 0;
+
+    function renderCategoryList() {
+        var $list = $('#categoryList');
+        $.get(API + '/template-categories', function (res) {
+            var rows = (res.code === 0 ? res.data : []) || [];
+            $list.empty();
+            if (!rows.length) { $list.append('<div class="helper-tip" style="padding:10px 0;">暂无分类，请在上方输入名称后新增。</div>'); return; }
+            rows.forEach(function (c) {
+                $list.append(
+                    '<div class="category-item">' +
+                        '<span>' + escapeHtml(c.name || '') + '</span>' +
+                        '<span class="category-actions">' +
+                            '<a class="cat-edit" data-id="' + c.id + '" data-name="' + escapeHtml(c.name || '') + '">编辑</a>' +
+                            '<a class="cat-del" data-id="' + c.id + '" data-name="' + escapeHtml(c.name || '') + '">删除</a>' +
+                        '</span>' +
+                    '</div>'
+                );
+            });
+        }, 'json');
+    }
+
+    function openCategoryManager() {
+        if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
+        var html = '<div style="padding:15px 18px;">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">' +
+                '<input type="text" id="catNewName" class="layui-input" style="flex:1;" placeholder="输入新分类名称" maxlength="100" autocomplete="off">' +
+                '<button type="button" class="layui-btn layui-btn-sm" id="btnAddCategory"><i class="fa fa-plus"></i> 新增</button>' +
+            '</div>' +
+            '<div id="categoryList" style="max-height:300px;overflow-y:auto;"></div>' +
+            '<div class="helper-tip">编辑分类会同步更新使用该分类的模板；被模板占用的分类不可删除。</div>' +
+        '</div>';
+        layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
+            type: 1,
+            title: '模板分类管理',
+            area: ['480px', '460px'],
+            content: html,
+            btn: false,
+            success: function () { renderCategoryList(); }
+        });
+    }
+
+    $('#btnCategoryMgr').on('click', openCategoryManager);
+    $('#btnAddCategory').on('click', function () {
+        var name = $.trim($('#catNewName').val());
+        if (!name) { layer.msg('请输入分类名称', { icon: 2 }); return; }
+        if (busyLock()) { return; }
+        $.ajax({
+            url: API + '/template-categories',
+            type: 'POST', contentType: 'application/json', dataType: 'json',
+            data: JSON.stringify({ name: name }),
+            success: function (res) {
+                busyUnlock();
+                if (res.code === 0) {
+                    $('#catNewName').val('');
+                    categoryOptionsCache = null;
+                    renderCategoryList();
+                } else {
+                    layer.msg(res.message || '创建失败', { icon: 2 });
+                }
+            },
+            error: function (xhr) { busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '创建失败'), { icon: 2 }); }
+        });
+    });
+
+    // 行内编辑 / 删除（弹窗内容为动态创建，绑定到 document 委托）
+    $(document).on('click', '.cat-edit', function () {
+        var id = $(this).data('id'), name = $(this).data('name');
+        layer.prompt({ title: '修改分类名称', value: name, formType: 0, maxlength: 100 }, function (val, idx) {
+            val = $.trim(val);
+            if (!val) { layer.msg('请输入分类名称', { icon: 2 }); return; }
+            layer.close(idx);
+            if (busyLock()) { return; }
+            $.ajax({
+                url: API + '/template-categories/' + id,
+                type: 'PUT', contentType: 'application/json', dataType: 'json',
+                data: JSON.stringify({ name: val }),
+                success: function (res) {
+                    busyUnlock();
+                    if (res.code === 0) {
+                        categoryOptionsCache = null;
+                        renderCategoryList();
+                    } else {
+                        layer.msg(res.message || '更新失败', { icon: 2 });
+                    }
+                },
+                error: function (xhr) { busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '更新失败'), { icon: 2 }); }
+            });
+        });
+    });
+    $(document).on('click', '.cat-del', function () {
+        var id = $(this).data('id'), name = $(this).data('name');
+        layer.confirm('确定删除分类「' + escapeHtml(name) + '」？', { icon: 3, title: '删除确认' }, function (idx) {
+            layer.close(idx);
+            if (busyLock()) { return; }
+            $.ajax({
+                url: API + '/template-categories/' + id,
+                type: 'DELETE', dataType: 'json',
+                success: function (res) {
+                    busyUnlock();
+                    if (res.code === 0) {
+                        categoryOptionsCache = null;
+                        renderCategoryList();
+                    } else {
+                        layer.msg(res.message || '删除失败', { icon: 2 });
+                    }
+                },
+                error: function (xhr) { busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '删除失败'), { icon: 2 }); }
+            });
+        });
+    });
 
     // ============ 邮件正文预览（隔离到 iframe，避免影响后台页面样式） ============
     function showHtml(title, html) {
@@ -457,8 +590,9 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
             });
         };
 
-        // 先确保账号下拉已就绪，再回填或打开
+        // 先确保账号与分类下拉已就绪，再回填或打开
         loadAccountOptions(function () {
+        loadCategoryOptions(function () {
             if (!editingId) { doOpen(); return; }
             if (busyLock()) { return; }
         var ld = layer.load(1, { shade: 0.3 });
@@ -483,6 +617,7 @@ layui.use(['jquery', 'table', 'form', 'layer', 'element'], function () {
                 form.render('select');
                 doOpen();
             }, 'json').fail(function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '模板读取失败'), { icon: 2 }); });
+        });
         });
     }
 
