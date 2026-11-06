@@ -62,6 +62,46 @@ class SendController extends BaseAdminController
     }
 
     /**
+     * 附件上传（发送页「上传附件」Tab）
+     *
+     * 存储到 storage/app/smtpmail/attachments/<Ymd>/，返回绝对路径供
+     * attachFromPath() 读取；文件名随机化避免覆盖，展示名保留原始文件名。
+     */
+    public function upload(Request $request): JsonResponse
+    {
+        if (! $this->hasPermission(self::PERMISSION)) {
+            return $this->permissionDenied();
+        }
+
+        return $this->run(function () use ($request) {
+            $request->validate(['file' => ['required', 'file', 'max:10240']], [], ['file' => '附件']);
+
+            $file = $request->file('file');
+            $ext = strtolower((string) ($file->getClientOriginalExtension() ?: ''));
+            $blocked = ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'pht', 'phar', 'cgi', 'pl', 'asp', 'aspx', 'jsp', 'jspx', 'htaccess', 'htpasswd'];
+            if (in_array($ext, $blocked, true)) {
+                return $this->fail('禁止上传服务端脚本文件：' . $ext);
+            }
+
+            // 直接落盘到应用附件目录，不依赖 filesystems 磁盘 root 约定
+            $dir = storage_path('app/smtpmail/attachments/' . date('Ymd'));
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+
+            $filename = date('His') . '_' . bin2hex(random_bytes(4)) . ($ext !== '' ? '.' . $ext : '');
+            $moved = $file->move($dir, $filename);
+            $path = (string) $moved->getRealPath();
+
+            return $this->success([
+                'path' => $path,
+                'name' => (string) $file->getClientOriginalName(),
+                'size' => is_file($path) ? (int) filesize($path) : 0,
+            ], '附件上传成功');
+        });
+    }
+
+    /**
      * 执行发送
      */
     public function send(Request $request): JsonResponse

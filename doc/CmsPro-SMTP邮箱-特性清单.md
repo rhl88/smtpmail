@@ -1,7 +1,7 @@
 # CmsPro SMTP邮箱 · 特性清单
 
-> 版本：1.0.1 | 更新日期：2026-11-05
-> 应用版本：1.0.1 | 应用 ID：`cmspro.smtpmail`
+> 版本：1.0.2 | 更新日期：2026-11-05
+> 应用版本：1.0.2 | 应用 ID：`cmspro.smtpmail`
 
 本清单依据 `manifest.json` 与应用内真实源码整理，系统列出本应用实际覆盖的 CmsPro v5 框架特性，并逐项标注实现文件位置，作为应用开发、验收与后续扩展的参考基准。
 
@@ -13,7 +13,7 @@
 |------|------|------|
 | 应用 ID | `cmspro.smtpmail` | `manifest.json` `id` |
 | 应用名称 | SMTP邮箱 | `manifest.json` `name` |
-| 版本 | `1.0.1` | `manifest.json` `version` |
+| 版本 | `1.0.2` | `manifest.json` `version` |
 | 应用目录 | `code/app/Apps/CmsproSmtpmail/` | 磁盘目录 |
 | 命名空间 | `App\Apps\CmsproSmtpmail\*` | 各 PHP 文件 `namespace` |
 | 服务提供者 | `ServiceProvider`（`manifest.json` `providers`） | `ServiceProvider.php` |
@@ -292,5 +292,6 @@ flowchart TD
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.0.2 | 2026-11-06 | 发送页三项完善：变量中文 label、高级选项折叠、附件上传/路径 Tab 二选一与上传接口 |
 | 1.0.1 | 2026-11-05 | 验收整改：设置白名单与密钥明文回显、`ApiResponse` 统一响应、`ForceJsonResponse` 强制 JSON 中间件、Service 更新入口必填兜底校验、视图语义色板/系统字体/弹窗配置/防重复提交、路由参数去 `int` 类型提示、应用级测试 41→55 |
 | 1.0.0 | 2026-11-05 | 首个版本：五大隔离、后台/外部接口/前台退订三终端、5 张表数据层、4 个钩子点与 2 个 Laravel 事件、配置三向同步、6 个权限、安装/卸载/升级、可视化模板、系统邮件运行时代理接管、队列与定时调度 |

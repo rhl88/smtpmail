@@ -203,6 +203,34 @@ class ValidationRegressionTest extends SmtpmailTestCase
         $this->assertSame(40001, $body['code']);
     }
 
+    // ===== 附件上传接口 =====
+
+    public function test_附件上传成功返回绝对路径与原始文件名(): void
+    {
+        $this->actingAdmin();
+
+        $response = $this->post('/admin/cmspro/smtpmail/api/send/upload', [
+            'file' => \Illuminate\Http\Testing\File::fake()->createWithContent('通知单.pdf', '%PDF-1.4 测试附件内容'),
+        ]);
+
+        $response->assertOk()->assertJsonPath('code', 0);
+        $path = (string) $response->json('data.path');
+        $this->assertFileExists($path);
+        $this->assertStringContainsString('smtpmail' . DIRECTORY_SEPARATOR . 'attachments', $path);
+        $this->assertSame('通知单.pdf', $response->json('data.name'));
+
+        @unlink($path);
+    }
+
+    public function test_附件上传服务端脚本文件被拒绝(): void
+    {
+        $this->actingAdmin();
+
+        $this->post('/admin/cmspro/smtpmail/api/send/upload', [
+            'file' => \Illuminate\Http\Testing\File::fake()->createWithContent('shell.php', '<?php echo 1;'),
+        ])->assertOk()->assertJsonPath('code', 40001);
+    }
+
     // ===== 后台页面视图渲染冒烟（兜住 Blade 语法错误） =====
 
     public function test_后台页面视图可正常渲染(): void

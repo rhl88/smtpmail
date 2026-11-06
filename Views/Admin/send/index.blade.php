@@ -24,6 +24,16 @@
         .result-box { margin-top: 12px; padding: 12px 14px; border-radius: 3px; background: rgba(22, 183, 119, 0.08); border: 1px solid rgba(22, 183, 119, 0.35); color: #16b777; font-size: 14px; line-height: 1.8; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
+        /* 高级选项折叠开关 */
+        .advanced-toggle { display: inline-block; margin: 2px 0 14px; padding: 6px 10px; color: #1e9fff; font-size: 13px; cursor: pointer; border-radius: 3px; }
+        .advanced-toggle:hover { background: rgba(30, 159, 255, 0.08); }
+        .advanced-toggle .fa { margin-right: 4px; }
+        /* 已上传附件列表 */
+        .upload-list { margin-top: 8px; }
+        .upload-list .upload-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 13px; color: #5f5f5f; }
+        .upload-list .upload-item .fa-file-o { color: #1e9fff; margin-right: 6px; }
+        .upload-list .upload-item .remove-upload { color: #ff5722; margin-left: 10px; cursor: pointer; }
+        .upload-list .upload-item .upload-path-tip { color: #999; font-size: 12px; margin-left: 8px; }
     </style>
     @include('admin.partials.permission-script')
 </head>
@@ -59,6 +69,8 @@
                             <input type="text" id="sendTo" class="layui-input" placeholder="必填；多个地址用逗号或分号分隔">
                         </div>
                     </div>
+                    <a href="javascript:;" id="btnAdvanced" class="advanced-toggle"><i class="fa fa-angle-down" id="advancedArrow"></i> 高级选项（抄送、密送、回信地址、优先级、定时与队列）</a>
+                    <div id="advancedWrap" style="display:none;">
                     <div class="layui-form-item">
                         <label class="layui-form-label">抄送</label>
                         <div class="layui-input-block">
@@ -101,6 +113,7 @@
                             <div class="helper-tip">勾选后由队列异步发送；需保证队列服务已运行。</div>
                         </div>
                     </div>
+                    </div>
                 </div>
             </div>
 
@@ -131,15 +144,25 @@
                 </div>
             </div>
 
-            {{-- 附件 --}}
+            {{-- 附件：上传附件 / 附件路径 二选一（以当前所在 Tab 为准） --}}
             <div class="layui-card">
-                <div class="layui-card-header"><i class="fa fa-paperclip"></i> 附件</div>
+                <div class="layui-card-header"><i class="fa fa-paperclip"></i> 附件（上传附件与附件路径二选一）</div>
                 <div class="layui-card-body">
-                    <div class="layui-form-item">
-                        <label class="layui-form-label">附件路径</label>
-                        <div class="layui-input-block">
-                            <textarea id="sendAttachments" class="layui-textarea" style="min-height:80px;" placeholder="每行一个服务器相对路径或绝对路径"></textarea>
-                            <div class="helper-tip">每行一个文件路径，提交时转换为含路径与文件名的附件对象数组。</div>
+                    <div class="layui-tab layui-tab-brief" lay-filter="attachTab">
+                        <ul class="layui-tab-title">
+                            <li class="layui-this">上传附件</li>
+                            <li>附件路径</li>
+                        </ul>
+                        <div class="layui-tab-content">
+                            <div class="layui-tab-item layui-show">
+                                <button type="button" class="layui-btn layui-btn-sm" id="btnUploadAttach"><i class="fa fa-upload"></i> 选择文件上传</button>
+                                <div id="uploadList" class="upload-list"></div>
+                                <div class="helper-tip">支持多选；单个文件不超过 10M，禁止上传 php 等服务端脚本文件；发送时以当前所在 Tab 为准。</div>
+                            </div>
+                            <div class="layui-tab-item">
+                                <textarea id="sendAttachments" class="layui-textarea" style="min-height:80px;" placeholder="每行一个服务器相对路径或绝对路径"></textarea>
+                                <div class="helper-tip">每行一个文件路径，提交时转换为含路径与文件名的附件对象数组。</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -163,10 +186,11 @@
 <script src="{{ asset('CmsProUi/component/layui/layui.js') }}"></script>
 <script src="{{ asset('CmsProUi/component/pear/pear.js') }}"></script>
 <script>
-layui.use(['jquery', 'form', 'layer'], function () {
+layui.use(['jquery', 'form', 'layer', 'upload'], function () {
     var $ = layui.jquery,
         form = layui.form,
-        layer = layui.layer;
+        layer = layui.layer,
+        upload = layui.upload;
 
         // 统一错误解析（I4）：优先展示后端 message，401 由 ajaxSetup 统一处理
     function parseError(xhr, fallback) {
@@ -255,7 +279,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
         else { $('#varsWrapCard').hide(); $('#directWrapCard').show(); }
     }
 
-    // 渲染所选模板声明的变量输入框
+    // 渲染所选模板声明的变量输入框：左侧显示变量中文 label，placeholder 保持按变量 key 提示
     function renderVars(code) {
         var $wrap = $('#varsWrap');
         $wrap.empty();
@@ -264,20 +288,38 @@ layui.use(['jquery', 'form', 'layer'], function () {
         for (var i = 0; i < templateList.length; i++) {
             if (String(firstVal(templateList[i], ['code', 'value', 'id'])) === String(code)) { tpl = templateList[i]; break; }
         }
-        var vars = tpl ? (tpl.extracted_variables || tpl.variables || []) : [];
-        if (typeof vars === 'string') {
-            try { vars = JSON.parse(vars); } catch (e) { vars = []; }
+        var declared = tpl ? (tpl.variables || []) : [];
+        var extracted = tpl ? (tpl.extracted_variables || []) : [];
+        if (typeof declared === 'string') {
+            try { declared = JSON.parse(declared); } catch (e) { declared = []; }
         }
-        if (!Array.isArray(vars)) { vars = (vars && typeof vars === 'object') ? Object.keys(vars) : []; }
-        if (!vars.length) { $wrap.append('<div class="helper-tip">该模板未声明变量，可留空直接发送。</div>'); return; }
-        vars.forEach(function (v) {
-            var name = (v && typeof v === 'object') ? firstVal(v, ['name', 'key', 'var', 'label']) : v;
-            if (!name) { return; }
+        // 归一化为 {name, label} 列表：优先模板声明（含中文 label），再补正文提取到的 key
+        var list = [], seen = {};
+        (Array.isArray(declared) ? declared : []).forEach(function (v) {
+            if (v && typeof v === 'object') {
+                var n = firstVal(v, ['name', 'key', 'var']);
+                if (!n) { return; }
+                list.push({ name: String(n), label: String(v.label || v.title || n) });
+                seen[n] = true;
+            } else if (v) {
+                var k = String(v);
+                list.push({ name: k, label: k });
+                seen[k] = true;
+            }
+        });
+        (Array.isArray(extracted) ? extracted : []).forEach(function (v) {
+            var n = (v && typeof v === 'object') ? firstVal(v, ['name', 'key', 'var', 'label']) : String(v);
+            if (!n || seen[n]) { return; }
+            list.push({ name: String(n), label: String((v && typeof v === 'object') ? firstVal(v, ['label', 'title', 'name']) : n) });
+            seen[n] = true;
+        });
+        if (!list.length) { $wrap.append('<div class="helper-tip">该模板未声明变量，可留空直接发送。</div>'); return; }
+        list.forEach(function (v) {
             $wrap.append(
                 '<div class="layui-form-item">' +
-                    '<label class="layui-form-label">' + escapeHtml(name) + '</label>' +
+                    '<label class="layui-form-label" for="var_' + escapeHtml(v.name) + '">' + escapeHtml(v.label) + '</label>' +
                     '<div class="layui-input-block">' +
-                        '<input type="text" class="layui-input var-input" data-var="' + escapeHtml(name) + '" placeholder="填写 ' + escapeHtml(name) + ' 的值">' +
+                        '<input type="text" id="var_' + escapeHtml(v.name) + '" class="layui-input var-input" data-var="' + escapeHtml(v.name) + '" placeholder="填写 ' + escapeHtml(v.name) + ' 的值">' +
                     '</div>' +
                 '</div>'
             );
@@ -291,15 +333,72 @@ layui.use(['jquery', 'form', 'layer'], function () {
         return vars;
     }
 
-    // 附件文本转换为路径与文件名对象数组
-    function collectAttachments() {
-        var arr = [];
-        String($('#sendAttachments').val() || '').split(/\r?\n/).forEach(function (line) {
-            line = $.trim(line);
-            if (!line) { return; }
-            arr.push({ path: line, name: line.split(/[\\/]/).pop() });
+    // 高级选项折叠切换：默认收起，点击展开/收起
+    $('#btnAdvanced').on('click', function () {
+        var $wrap = $('#advancedWrap');
+        var opening = !$wrap.is(':visible');
+        $wrap.toggle();
+        $('#advancedArrow').toggleClass('fa-angle-down', !opening).toggleClass('fa-angle-up', opening);
+    });
+
+    // 已上传附件列表（与附件路径 Tab 二选一）
+    var uploadedFiles = [];
+    var activeAttachTab = 'upload'; // layui tab 初始即为「上传附件」
+    function renderUploadList() {
+        var $list = $('#uploadList');
+        $list.empty();
+        if (!uploadedFiles.length) { return; }
+        uploadedFiles.forEach(function (f, idx) {
+            $list.append(
+                '<div class="upload-item">' +
+                    '<i class="fa fa-file-o"></i>' + escapeHtml(f.name || '') +
+                    '<span class="upload-path-tip">' + escapeHtml(f.path || '') + '</span>' +
+                    '<span class="remove-upload" data-idx="' + idx + '" title="移除"><i class="fa fa-trash"></i></span>' +
+                '</div>'
+            );
         });
-        return arr;
+    }
+    $('#uploadList').on('click', '.remove-upload', function () {
+        uploadedFiles.splice(parseInt($(this).data('idx'), 10), 1);
+        renderUploadList();
+    });
+
+    upload.render({
+        elem: '#btnUploadAttach',
+        url: API + '/send/upload',
+        field: 'file',
+        accept: 'file',
+        multiple: true,
+        size: 10240,
+        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+        before: function () { busyLock(); },
+        done: function (res) {
+            busyUnlock();
+            if (res && res.code === 0 && res.data && res.data.path) {
+                uploadedFiles.push({ path: String(res.data.path), name: String(res.data.name || '') });
+                renderUploadList();
+            } else {
+                layer.msg((res && res.message) || '附件上传失败', { icon: 2 });
+            }
+        },
+        error: function () {
+            busyUnlock();
+            layer.msg('附件上传失败', { icon: 2 });
+        }
+    });
+
+    // 附件文本转换为路径与文件名对象数组（按当前所在 Tab 二选一）
+    function collectAttachments() {
+        if (activeAttachTab === 'path') {
+            var arr = [];
+            String($('#sendAttachments').val() || '').split(/\r?\n/).forEach(function (line) {
+                line = $.trim(line);
+                if (!line) { return; }
+                arr.push({ path: line, name: line.split(/[\\/]/).pop() });
+            });
+            return arr;
+        }
+        return uploadedFiles.map(function (f) { return { path: f.path, name: f.name }; });
     }
 
     // 日期控件值转换为年月日时分秒
@@ -313,6 +412,12 @@ layui.use(['jquery', 'form', 'layer'], function () {
     form.on('select(sendTemplate)', function (data) {
         renderVars(data.value);
         toggleMode();
+    });
+
+    // 附件 Tab 切换：跟踪当前 Tab，收集附件时二选一
+    var $attachTabItems = $('[lay-filter="attachTab"] .layui-tab-title li');
+    $attachTabItems.on('click', function () {
+        activeAttachTab = $(this).index() === 0 ? 'upload' : 'path';
     });
 
     // 邮件 HTML 预览：隔离到 iframe 展示
@@ -415,6 +520,10 @@ layui.use(['jquery', 'form', 'layer'], function () {
         setTimeout(function () {
             $('#sendResult').hide().empty();
             $('#varsWrap').empty();
+            uploadedFiles = [];
+            renderUploadList();
+            $('#advancedWrap').hide();
+            $('#advancedArrow').removeClass('fa-angle-up').addClass('fa-angle-down');
             toggleMode();
             form.render();
         }, 0);
