@@ -112,7 +112,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         { type: 'numbers', title: '#', width: 50 },
         { field: 'email', title: '邮箱地址', minWidth: 220, templet: function (d) { return escapeHtml(d.email || ''); } },
         { field: 'reason', title: '加入原因', minWidth: 220, templet: function (d) { return escapeHtml(d.reason || ''); } },
-        { field: 'created_at', title: '加入时间', width: 180 },
+        { field: 'create_time', title: '加入时间', width: 180, templet: function (d) { return escapeHtml(d.create_time || d.created_at || ''); } },
         { title: '操作', width: 110, toolbar: '#rowBar', fixed: 'right' }
     ]];
 
