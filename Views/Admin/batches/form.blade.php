@@ -11,7 +11,7 @@
             <div class="layui-form-item">
                 <label class="layui-form-label">邮件模板</label>
                 <div class="layui-input-block">
-                    <select id="batTemplateCode"></select>
+                    <select id="batTemplateCode" lay-filter="batTemplateCode"></select>
                     <div class="helper-tip">下拉数据来自邮件模板选项接口。</div>
                 </div>
             </div>
@@ -25,8 +25,8 @@
             <div class="layui-form-item">
                 <label class="layui-form-label">模板变量</label>
                 <div class="layui-input-block">
-                    <textarea id="batVars" class="layui-textarea" style="min-height:80px;" placeholder='JSON 对象，可留空，如：{"site_name":"CmsPro"}'></textarea>
-                    <div class="helper-tip">整批共用的变量取值，须为合法 JSON 对象；留空表示不带变量。</div>
+                    <div id="batVarsWrap"></div>
+                    <div class="helper-tip">整批共用的变量取值，选择模板后按模板声明的变量填写；留空表示不带变量。</div>
                 </div>
             </div>
             <div class="layui-form-item">

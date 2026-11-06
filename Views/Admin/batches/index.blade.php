@@ -124,11 +124,27 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
     }
     hidePermButtons();
 
+    // 按模板编码查找模板名称（来自模板选项缓存；未命中如已停用/删除则回退显示编码）
+    function findTemplateName(code) {
+        var list = templateOptionsCache || [];
+        for (var i = 0; i < list.length; i++) {
+            if (String(firstVal(list[i], ['code', 'value', 'id'])) === String(code)) {
+                return String(firstVal(list[i], ['name', 'label', 'title']) || code);
+            }
+        }
+        return '';
+    }
+
     // ============ 群发任务列表 ============
     var cols = [[
         { type: 'numbers', title: '#', width: 50 },
         { field: 'name', title: '名称', minWidth: 150, templet: function (d) { return escapeHtml(d.name || ''); } },
-        { field: 'template_code', title: '模板', width: 160, templet: function (d) { return escapeHtml(d.template_code || ''); } },
+        { field: 'template_code', title: '模板', width: 160, templet: function (d) {
+            var code = String(d.template_code || '');
+            var name = findTemplateName(code);
+            if (!name) { return escapeHtml(code); }
+            return '<span title="' + escapeHtml(code) + '">' + escapeHtml(name) + '</span>';
+        } },
         { field: 'total_count', title: '总数', width: 90, align: 'center', templet: function (d) { return d.total_count != null ? d.total_count : (d.total != null ? d.total : 0); } },
         { field: 'success_count', title: '成功', width: 90, align: 'center', templet: function (d) { return d.success_count != null ? d.success_count : (d.success != null ? d.success : 0); } },
         { field: 'failed_count', title: '失败', width: 90, align: 'center', templet: function (d) { return d.failed_count != null ? d.failed_count : (d.failed != null ? d.failed : 0); } },
@@ -177,10 +193,65 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         $.get(API + '/templates/options', function (res) {
             if (res.code === 0) { templateOptionsCache = res.data || []; }
             fillSelect($('#batTemplateCode'), templateOptionsCache || [], '请选择模板');
+            // 选项到达后重渲染列表，使模板列由编码回退升级为名称显示
+            table.reload('batchesTable');
             if (cb) { cb(); }
         }, 'json');
     }
     loadTemplateOptions();
+
+    // 渲染所选模板声明的变量输入框：左侧显示变量中文 label，placeholder 保持按变量 key 提示（与发送页一致）
+    function renderBatchVars(code) {
+        var $wrap = $('#batVarsWrap');
+        $wrap.empty();
+        if (!code) { return; }
+        var tpl = null;
+        var list = templateOptionsCache || [];
+        for (var i = 0; i < list.length; i++) {
+            if (String(firstVal(list[i], ['code', 'value', 'id'])) === String(code)) { tpl = list[i]; break; }
+        }
+        var declared = tpl ? (tpl.variables || []) : [];
+        var extracted = tpl ? (tpl.extracted_variables || []) : [];
+        if (typeof declared === 'string') {
+            try { declared = JSON.parse(declared); } catch (e) { declared = []; }
+        }
+        // 归一化为 {name, label} 列表：优先模板声明（含中文 label），再补正文提取到的 key
+        var vars = [], seen = {};
+        (Array.isArray(declared) ? declared : []).forEach(function (v) {
+            if (v && typeof v === 'object') {
+                var n = firstVal(v, ['name', 'key', 'var']);
+                if (!n) { return; }
+                vars.push({ name: String(n), label: String(v.label || v.title || n) });
+                seen[n] = true;
+            } else if (v) {
+                var k = String(v);
+                vars.push({ name: k, label: k });
+                seen[k] = true;
+            }
+        });
+        (Array.isArray(extracted) ? extracted : []).forEach(function (v) {
+            var n = (v && typeof v === 'object') ? firstVal(v, ['name', 'key', 'var', 'label']) : String(v);
+            if (!n || seen[n]) { return; }
+            vars.push({ name: String(n), label: String((v && typeof v === 'object') ? firstVal(v, ['label', 'title', 'name']) : n) });
+            seen[n] = true;
+        });
+        if (!vars.length) { $wrap.append('<div class="helper-tip">该模板未声明变量，可留空直接创建。</div>'); return; }
+        vars.forEach(function (v) {
+            $wrap.append(
+                '<div class="layui-form-item">' +
+                    '<label class="layui-form-label" for="batvar_' + escapeHtml(v.name) + '">' + escapeHtml(v.label) + '</label>' +
+                    '<div class="layui-input-block">' +
+                        '<input type="text" id="batvar_' + escapeHtml(v.name) + '" class="layui-input var-input" data-var="' + escapeHtml(v.name) + '" placeholder="填写 ' + escapeHtml(v.name) + ' 的值">' +
+                    '</div>' +
+                '</div>'
+            );
+        });
+    }
+
+    // 选择模板后按模板声明渲染变量表单
+    form.on('select(batTemplateCode)', function (data) {
+        renderBatchVars(data.value);
+    });
 
     // ============ 新建群发弹窗 ============
     var batchLayerIndex = 0;
@@ -196,11 +267,12 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
         $('#batName').val('');
         $('#batRecipients').val('');
-        $('#batVars').val('');
+        renderBatchVars('');
         $('#batScheduledAt').val('');
         loadTemplateOptions(function () {
             $('#batTemplateCode').val('');
             form.render('select');
+            renderBatchVars('');
             batchLayerIndex = layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
                 type: 1,
                 title: '新建批量群发',
@@ -219,14 +291,9 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
     // 保存群发任务
     $('#btnSaveBatch').on('click', function () {
         if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
-        var varsText = $.trim($('#batVars').val());
+        // 收集模板变量输入框为对象（按模板声明生成，不再要求手写 JSON）
         var vars = {};
-        if (varsText) {
-            try {
-                vars = JSON.parse(varsText);
-                if (typeof vars !== 'object' || vars === null || Array.isArray(vars)) { throw new Error('格式错误'); }
-            } catch (e) { layer.msg('变量 JSON 格式不正确', { icon: 2 }); return; }
-        }
+        $('#batVarsWrap .var-input').each(function () { vars[$(this).data('var')] = $(this).val(); });
         var payload = {
             name: $.trim($('#batName').val()),
             template_code: $('#batTemplateCode').val() || '',
