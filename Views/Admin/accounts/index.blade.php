@@ -71,12 +71,12 @@
         {{# if(d.status == 1){ }}<span class="layui-badge layui-bg-green">启用</span>{{# } else { }}<span class="layui-badge layui-bg-gray">停用</span>{{# } }}
     </script>
     <script type="text/html" id="rowBar">
-        <a class="layui-btn layui-btn-xs" lay-event="edit" data-permission="cmspro.smtpmail.account"><i class="fa fa-pencil"></i> 编辑</a>
+        <a class="layui-btn layui-btn-xs" lay-event="edit" data-permission="cmspro.smtpmail.account">编辑</a>
         {{# if(d.is_default != 1){ }}
-        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="default" data-permission="cmspro.smtpmail.account"><i class="fa fa-check"></i> 设为默认</a>
+        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="default" data-permission="cmspro.smtpmail.account">设为默认</a>
         {{# } }}
-        <a class="layui-btn layui-btn-xs" lay-event="test" data-permission="cmspro.smtpmail.account"><i class="fa fa-paper-plane"></i> 测试</a>
-        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete" data-permission="cmspro.smtpmail.account"><i class="fa fa-trash"></i> 删除</a>
+        <a class="layui-btn layui-btn-xs" lay-event="test" data-permission="cmspro.smtpmail.account">测试</a>
+        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete" data-permission="cmspro.smtpmail.account">删除</a>
     </script>
     @endverbatim
 </div>
@@ -145,7 +145,11 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         { field: 'port', title: '端口', width: 80, align: 'center' },
         { field: 'scheme', title: '加密', width: 85, align: 'center', templet: '#schemeTpl' },
         { field: 'from_address', title: '发件人', minWidth: 180, templet: function (d) {
-            return escapeHtml(d.from_name ? (d.from_name + ' <' + (d.from_address || '') + '>') : (d.from_address || ''));
+            // 只显示发件人名称，地址悬停浮动提示（title 原生提示）
+            var name = String(d.from_name || '');
+            var addr = String(d.from_address || '');
+            if (!name) { return escapeHtml(addr); }
+            return '<span title="' + escapeHtml(addr) + '">' + escapeHtml(name) + '</span>';
         } },
         { field: 'is_default', title: '默认', width: 80, align: 'center', templet: '#defaultTpl' },
         { field: 'status', title: '状态', width: 80, align: 'center', templet: '#statusTpl' },
