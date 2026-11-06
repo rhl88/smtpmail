@@ -300,6 +300,25 @@ class ValidationRegressionTest extends SmtpmailTestCase
 
     // ===== 模板分类管理 =====
 
+    public function test_安装种子内置四个模板且编码无demo前缀(): void
+    {
+        $install = new \App\Apps\CmsproSmtpmail\Install();
+        $method = new \ReflectionMethod($install, 'seedBuiltinTemplates');
+        $method->setAccessible(true);
+        $method->invoke($install);
+
+        $codes = \App\Apps\CmsproSmtpmail\Models\SmtpmailTemplate::query()->pluck('code')->all();
+        foreach (['verify_code', 'password_reset', 'welcome', 'notice'] as $code) {
+            $this->assertContains($code, $codes, '内置模板缺失：' . $code);
+        }
+        $this->assertNotContains('demo_welcome', $codes);
+        $this->assertNotContains('demo_notice', $codes);
+
+        foreach (\App\Apps\CmsproSmtpmail\Models\SmtpmailTemplate::whereIn('code', ['verify_code', 'password_reset', 'welcome', 'notice'])->get() as $tpl) {
+            $this->assertSame(1, (int) $tpl->is_system, $tpl->code . ' 应为内置模板');
+            $this->assertSame('system', (string) $tpl->category, $tpl->code . ' 分类应为 system');
+        }
+    }
     public function test_分类创建成功且重名被拒绝(): void
     {
         $this->actingAdmin();

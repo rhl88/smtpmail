@@ -28,6 +28,18 @@ class InstallTest extends SmtpmailTestCase
         $this->assertStringContainsString('{{code}}', (string) $template->body_html);
     }
 
+    public function test_安装后内置欢迎与通知模板存在(): void
+    {
+        app(Install::class)->install();
+
+        foreach (['welcome', 'notice'] as $code) {
+            $this->assertDatabaseHas('app_cmspro_smtpmail_templates', [
+                'code' => $code, 'is_system' => 1, 'status' => 1, 'category' => 'system',
+            ]);
+        }
+        $this->assertSame(4, SmtpmailTemplate::count());
+    }
+
     public function test_升级不覆盖用户已编辑的内置模板(): void
     {
         $install = app(Install::class);
@@ -40,7 +52,7 @@ class InstallTest extends SmtpmailTestCase
             '用户自定义主题',
             SmtpmailTemplate::where('code', 'verify_code')->value('subject')
         );
-        $this->assertSame(2, SmtpmailTemplate::count());
+        $this->assertSame(4, SmtpmailTemplate::count());
     }
 
     public function test_卸载通过迁移回滚删除全部应用表(): void

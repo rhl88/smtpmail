@@ -252,6 +252,39 @@ class Install
                     ['name' => 'nickname', 'label' => '用户昵称'],
                 ],
             ],
+            [
+                'code' => 'welcome',
+                'name' => '新用户欢迎邮件',
+                'category' => 'system',
+                'subject' => '【{{site_name}}】欢迎加入，{{nickname}}',
+                'body_html' => '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1f2329">'
+                    . '<h2>欢迎加入 {{site_name}}</h2>'
+                    . '<p>您好，{{nickname}}：</p>'
+                    . '<p>您的账号已创建成功，现在可以登录并开始使用全部功能。</p>'
+                    . '<p style="color:#86909c">如有疑问，直接回复本邮件即可联系我们。</p>'
+                    . '<hr>'
+                    . '<p style="color:#86909c">&copy; {{year}} {{site_name}}</p></div>',
+                'body_text' => "欢迎加入 {{site_name}}\n\n您好，{{nickname}}：\n您的账号已创建成功，现在可以登录并开始使用全部功能。\n\n© {{year}} {{site_name}}",
+                'variables' => [
+                    ['name' => 'nickname', 'label' => '用户昵称'],
+                    ['name' => 'site_name', 'label' => '站点名称'],
+                ],
+            ],
+            [
+                'code' => 'notice',
+                'name' => '系统通知公告',
+                'category' => 'system',
+                'subject' => '【{{site_name}}】{{title}}',
+                'body_html' => '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1f2329">'
+                    . '<h2>{{title}}</h2>'
+                    . '<p>{{content}}</p>'
+                    . '<p style="color:#86909c">本邮件由 {{site_name}} 自动发送，请勿直接回复。</p></div>',
+                'body_text' => "{{title}}\n\n{{content}}\n\n本邮件由 {{site_name}} 自动发送，请勿直接回复。",
+                'variables' => [
+                    ['name' => 'title', 'label' => '通知标题'],
+                    ['name' => 'content', 'label' => '通知正文'],
+                ],
+            ],
         ];
 
         foreach ($templates as $item) {
