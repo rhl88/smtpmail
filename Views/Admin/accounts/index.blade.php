@@ -154,7 +154,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         { field: 'is_default', title: '默认', width: 80, align: 'center', templet: '#defaultTpl' },
         { field: 'status', title: '状态', width: 80, align: 'center', templet: '#statusTpl' },
         { field: 'last_test_at', title: '最近测试', width: 165 },
-        { field: 'created_at', title: '创建时间', width: 165 },
+        { field: 'create_time', title: '创建时间', width: 165, templet: function (d) { return escapeHtml(d.create_time || d.created_at || ''); } },
         { title: '操作', width: 250, toolbar: '#rowBar', fixed: 'right' }
     ]];
 

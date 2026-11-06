@@ -149,7 +149,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         { field: 'success_count', title: '成功', width: 90, align: 'center', templet: function (d) { return d.success_count != null ? d.success_count : (d.success != null ? d.success : 0); } },
         { field: 'failed_count', title: '失败', width: 90, align: 'center', templet: function (d) { return d.failed_count != null ? d.failed_count : (d.failed != null ? d.failed : 0); } },
         { field: 'status', title: '状态', width: 100, align: 'center', templet: '#statusTpl' },
-        { field: 'created_at', title: '创建时间', width: 165 },
+        { field: 'create_time', title: '创建时间', width: 165, templet: function (d) { return escapeHtml(d.create_time || d.created_at || ''); } },
         { title: '操作', width: 110, toolbar: '#rowBar', fixed: 'right' }
     ]];
 

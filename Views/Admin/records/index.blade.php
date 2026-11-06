@@ -189,7 +189,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
         { field: 'retry_count', title: '重试次数', width: 95, align: 'center', templet: function (d) {
             return d.retry_count != null ? d.retry_count : (d.retries != null ? d.retries : 0);
         } },
-        { field: 'created_at', title: '时间', width: 165, templet: function (d) { return escapeHtml(d.created_at || d.sent_at || d.send_time || ''); } },
+        { field: 'create_time', title: '时间', width: 165, templet: function (d) { return escapeHtml(d.create_time || d.created_at || d.sent_at || d.send_time || ''); } },
         { field: 'source', title: '来源', width: 110, templet: function (d) { return escapeHtml(d.source || d.source_text || ''); } },
         { title: '操作', width: 280, toolbar: '#rowBar', fixed: 'right' }
     ]];
@@ -244,7 +244,7 @@ layui.use(['jquery', 'table', 'form', 'layer'], function () {
                 '<div><span class="meta-label">收件人：</span>' + escapeHtml(fmtTo(d.to_addresses)) + '</div>' +
                 '<div><span class="meta-label">状态：</span>' + escapeHtml(d.status_text || d.status || '') +
                 '　<span class="meta-label">重试次数：</span>' + escapeHtml(d.retry_count != null ? d.retry_count : 0) + '</div>' +
-                '<div><span class="meta-label">时间：</span>' + escapeHtml(d.created_at || d.sent_at || '') +
+                '<div><span class="meta-label">时间：</span>' + escapeHtml(d.create_time || d.created_at || d.sent_at || '') +
                 '　<span class="meta-label">来源：</span>' + escapeHtml(d.source || d.source_text || '') + '</div>';
             $('#detailMeta').html(meta);
             layer.open({ shade: [0.5, '#000'], shadeClose: 0, closeBtn: 1,
