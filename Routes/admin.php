@@ -61,6 +61,7 @@ Route::prefix('api')->middleware(ForceJsonResponse::class)->name('api.')->group(
     Route::get('/send/options', [SendController::class, 'options'])->name('send.options');
     Route::post('/send/preview', [SendController::class, 'preview'])->name('send.preview');
     Route::post('/send/upload', [SendController::class, 'upload'])->name('send.upload');
+    Route::post('/send/attachments/resolve', [SendController::class, 'resolveAttachments'])->name('send.resolve');
     Route::post('/send', [SendController::class, 'send'])->name('send.send');
 
     // 发送日志

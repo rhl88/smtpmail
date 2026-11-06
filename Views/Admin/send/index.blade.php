@@ -156,8 +156,9 @@
                         <div class="layui-tab-content">
                             <div class="layui-tab-item layui-show">
                                 <button type="button" class="layui-btn layui-btn-sm" id="btnUploadAttach"><i class="fa fa-upload"></i> 选择文件上传</button>
+                                <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" id="btnPickAttach"><i class="fa fa-folder-open"></i> 从附件管理选择</button>
                                 <div id="uploadList" class="upload-list"></div>
-                                <div class="helper-tip">支持多选；单个文件不超过 10M，禁止上传 php 等服务端脚本文件；发送时以当前所在 Tab 为准。</div>
+                                <div class="helper-tip">支持多选；单个文件不超过 10M，禁止上传 php 等服务端脚本文件；也可从系统附件管理中选取已有文件；发送时以当前所在 Tab 为准。</div>
                             </div>
                             <div class="layui-tab-item">
                                 <textarea id="sendAttachments" class="layui-textarea" style="min-height:80px;" placeholder="每行一个服务器相对路径或绝对路径"></textarea>
@@ -385,6 +386,51 @@ layui.use(['jquery', 'form', 'layer', 'upload'], function () {
             busyUnlock();
             layer.msg('附件上传失败', { icon: 2 });
         }
+    });
+
+    // 从系统附件管理选择：picker 弹窗选择后经后端解析为服务器绝对路径，加入附件列表
+    $('#btnPickAttach').on('click', function () {
+        if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
+        layer.open({
+            type: 2,
+            title: '从附件管理选择',
+            area: ['90%', '80%'],
+            content: '/admin/attachment?picker=1',
+            end: function () {
+                // 附件管理 picker：单选写入 selectedAttachmentUrl，批量选择写入 selectedAttachmentUrls（JSON 数组）
+                var urls = [];
+                var batchRaw = sessionStorage.getItem('selectedAttachmentUrls');
+                var singleUrl = sessionStorage.getItem('selectedAttachmentUrl');
+                sessionStorage.removeItem('selectedAttachmentUrls');
+                sessionStorage.removeItem('selectedAttachmentUrl');
+                if (batchRaw) {
+                    try { urls = JSON.parse(batchRaw) || []; } catch (e) { urls = []; }
+                }
+                if (singleUrl) { urls.push(singleUrl); }
+                if (!urls.length) { return; }
+
+                if (busyLock()) { return; }
+                var ld = layer.load(1, { shade: 0.3 });
+                $.ajax({
+                    url: API + '/send/attachments/resolve',
+                    type: 'POST', contentType: 'application/json', dataType: 'json',
+                    data: JSON.stringify({ urls: urls }),
+                    success: function (res) {
+                        layer.close(ld); busyUnlock();
+                        if (res.code === 0 && res.data && res.data.length) {
+                            res.data.forEach(function (f) {
+                                if (f && f.path) { uploadedFiles.push({ path: String(f.path), name: String(f.name || '') }); }
+                            });
+                            renderUploadList();
+                            layer.msg(res.message || '已加入附件列表', { icon: 1, time: 1200 });
+                        } else {
+                            layer.msg(res.message || '附件解析失败', { icon: 2 });
+                        }
+                    },
+                    error: function (xhr) { layer.close(ld); busyUnlock(); if (xhr.status === 401) { return; } layer.msg(parseError(xhr, '附件解析失败'), { icon: 2 }); }
+                });
+            }
+        });
     });
 
     // 附件文本转换为路径与文件名对象数组（按当前所在 Tab 二选一）

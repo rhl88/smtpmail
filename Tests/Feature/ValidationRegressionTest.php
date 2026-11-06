@@ -231,6 +231,60 @@ class ValidationRegressionTest extends SmtpmailTestCase
         ])->assertOk()->assertJsonPath('code', 40001);
     }
 
+    public function test_附件管理选择解析成功返回绝对路径与原始文件名(): void
+    {
+        $this->actingAdmin();
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('public_uploads');
+        $disk->put('smtpmail-test/demo.txt', '测试附件内容');
+        \App\Models\Attachment::query()->create([
+            'name' => '演示文件.txt',
+            'path' => 'smtpmail-test/demo.txt',
+            'url' => '/uploads/smtpmail-test/demo.txt',
+            'mime_type' => 'text/plain',
+            'extension' => 'txt',
+            'size' => strlen('测试附件内容'),
+            'disk' => 'public_uploads',
+            'category' => 'file',
+            'status' => 1,
+        ]);
+
+        $response = $this->post('/admin/cmspro/smtpmail/api/send/attachments/resolve', [
+            'urls' => ['/uploads/smtpmail-test/demo.txt'],
+        ]);
+
+        $response->assertOk()->assertJsonPath('code', 0);
+        $path = (string) $response->json('data.0.path');
+        $this->assertFileExists($path);
+        $this->assertStringContainsString('uploads' . DIRECTORY_SEPARATOR . 'smtpmail-test', $path);
+        $this->assertSame('演示文件.txt', $response->json('data.0.name'));
+
+        $disk->delete('smtpmail-test/demo.txt');
+    }
+
+    public function test_附件管理选择不存在文件被拒绝(): void
+    {
+        $this->actingAdmin();
+
+        $this->post('/admin/cmspro/smtpmail/api/send/attachments/resolve', [
+            'urls' => ['/uploads/smtpmail-test/nope.txt'],
+        ])->assertOk()->assertJsonPath('code', 40001);
+    }
+
+    public function test_附件管理选择服务端脚本文件被拒绝(): void
+    {
+        $this->actingAdmin();
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('public_uploads');
+        $disk->put('smtpmail-test/shell.php', '<?php echo 1;');
+
+        $this->post('/admin/cmspro/smtpmail/api/send/attachments/resolve', [
+            'urls' => ['/uploads/smtpmail-test/shell.php'],
+        ])->assertOk()->assertJsonPath('code', 40001);
+
+        $disk->delete('smtpmail-test/shell.php');
+    }
+
     // ===== 后台页面视图渲染冒烟（兜住 Blade 语法错误） =====
 
     public function test_后台页面视图可正常渲染(): void

@@ -7,8 +7,10 @@ use App\Apps\CmsproSmtpmail\Services\AccountService;
 use App\Apps\CmsproSmtpmail\Services\MailService;
 use App\Apps\CmsproSmtpmail\Services\TemplateRenderer;
 use App\Apps\CmsproSmtpmail\Services\TemplateService;
+use App\Models\Attachment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 /**
@@ -17,6 +19,9 @@ use Illuminate\View\View;
 class SendController extends BaseAdminController
 {
     private const PERMISSION = 'cmspro.smtpmail.send';
+
+    /** 禁止作为邮件附件发送的服务端脚本后缀 */
+    private const BLOCKED_EXTENSIONS = ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'pht', 'phar', 'cgi', 'pl', 'asp', 'aspx', 'jsp', 'jspx', 'htaccess', 'htpasswd'];
 
     public function index(): View
     {
@@ -78,8 +83,7 @@ class SendController extends BaseAdminController
 
             $file = $request->file('file');
             $ext = strtolower((string) ($file->getClientOriginalExtension() ?: ''));
-            $blocked = ['php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'pht', 'phar', 'cgi', 'pl', 'asp', 'aspx', 'jsp', 'jspx', 'htaccess', 'htpasswd'];
-            if (in_array($ext, $blocked, true)) {
+            if (in_array($ext, self::BLOCKED_EXTENSIONS, true)) {
                 return $this->fail('禁止上传服务端脚本文件：' . $ext);
             }
 
@@ -98,6 +102,70 @@ class SendController extends BaseAdminController
                 'name' => (string) $file->getClientOriginalName(),
                 'size' => is_file($path) ? (int) filesize($path) : 0,
             ], '附件上传成功');
+        });
+    }
+
+    /**
+     * 解析附件管理选择的附件（发送页「从附件管理选择」）
+     *
+     * 附件管理 picker 返回 /uploads/... 形式的访问地址，本接口将其还原为
+     * public_uploads 磁盘上的服务器绝对路径，供发送时 attachFromPath() 使用；
+     * 同时复用脚本后缀黑名单校验，优先返回附件管理记录中的原始文件名。
+     */
+    public function resolveAttachments(Request $request): JsonResponse
+    {
+        if (! $this->hasPermission(self::PERMISSION)) {
+            return $this->permissionDenied();
+        }
+
+        return $this->run(function () use ($request) {
+            $request->validate(['urls' => ['required', 'array', 'min:1', 'max:20']], [], ['urls' => '附件地址']);
+
+            $disk = Storage::disk('public_uploads');
+            $resolved = [];
+
+            foreach ((array) $request->input('urls') as $url) {
+                $url = trim((string) $url);
+                if ($url === '') {
+                    continue;
+                }
+
+                // 兼容相对地址与带域名的完整地址：统一取 path 部分
+                $path = (string) (parse_url($url, PHP_URL_PATH) ?: $url);
+                $rel = (string) preg_replace('#^/uploads/#i', '', $path);
+                if ($rel === '' || $rel === $path) {
+                    return $this->fail('不是有效的附件管理地址：' . basename($path));
+                }
+
+                if (! $disk->exists($rel) || ! is_file($disk->path($rel))) {
+                    return $this->fail('附件不存在或已被删除：' . basename($rel));
+                }
+
+                $ext = strtolower((string) pathinfo($rel, PATHINFO_EXTENSION));
+                if (in_array($ext, self::BLOCKED_EXTENSIONS, true)) {
+                    return $this->fail('禁止发送服务端脚本文件：' . $ext);
+                }
+
+                // 优先取附件管理记录中的原始文件名
+                $name = basename($rel);
+                $record = Attachment::query()->where('url', $path)->first();
+                if ($record !== null && (string) $record->name !== '') {
+                    $name = (string) $record->name;
+                }
+
+                $abs = $disk->path($rel);
+                $resolved[] = [
+                    'path' => $abs,
+                    'name' => $name,
+                    'size' => (int) filesize($abs),
+                ];
+            }
+
+            if (empty($resolved)) {
+                return $this->fail('未选择任何附件');
+            }
+
+            return $this->success($resolved, '附件解析成功');
         });
     }
 
