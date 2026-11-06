@@ -25,6 +25,15 @@
         .takeover-status.warn { background: rgba(255, 184, 0, 0.08); border: 1px solid rgba(255, 184, 0, 0.35); color: #ffb800; }
         /* 表单标签单行显示，不覆盖 Layui 默认宽度 */
         .layui-form-label { white-space: nowrap; }
+        /* 设置 Tab 与接口文档样式 */
+        .settings-tab .layui-tab-title { border-bottom: 1px solid #e6e6e6; }
+        .api-doc { font-size: 13px; line-height: 1.9; color: #5f5f5f; }
+        .api-doc h3 { font-size: 14px; color: #333; margin: 16px 0 8px; }
+        .api-doc table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+        .api-doc th, .api-doc td { border: 1px solid #e6e6e6; padding: 7px 10px; text-align: left; font-size: 12px; }
+        .api-doc th { background: whitesmoke; color: #333; font-weight: normal; }
+        .api-doc pre { background: whitesmoke; border: 1px solid #e6e6e6; border-radius: 3px; padding: 12px 14px; font-size: 12px; line-height: 1.7; overflow-x: auto; color: #5f5f5f; margin: 8px 0; }
+        .api-doc code { color: #1e9fff; }
     </style>
     @include('admin.partials.permission-script')
 </head>
@@ -57,7 +66,7 @@
 <script src="{{ asset('CmsProUi/component/layui/layui.js') }}"></script>
 <script src="{{ asset('CmsProUi/component/pear/pear.js') }}"></script>
 <script>
-layui.use(['jquery', 'form', 'layer'], function () {
+layui.use(['jquery', 'form', 'layer', 'element'], function () {
     var $ = layui.jquery,
         form = layui.form,
         layer = layui.layer;
@@ -151,44 +160,118 @@ layui.use(['jquery', 'form', 'layer'], function () {
         return out;
     }
 
-    // 渲染分组表单：开关、密码、数字、文本四类字段
+    // 系统邮件模板映射字段：文本框改为下拉选择模板编码
+    var MAP_FIELDS = { template_verify_code: 1, template_password_reset: 1 };
+    var templateListCache = [];
+
+    function loadTemplateOptions() {
+        $.get(API + '/templates/options', function (res) {
+            var d = res.data || {};
+            templateListCache = Array.isArray(d) ? d : (d.templates || []);
+        }, 'json');
+    }
+
+    // 渲染单个配置项控件
+    function renderControl(key, title, type, value) {
+        var html = '';
+        if (type === 'switch') {
+            var on = (String(value) === '1' || value === 1 || value === true || value === 'true');
+            html = '<input type="checkbox" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" lay-skin="switch" lay-text="开启|关闭" data-key="' + escapeHtml(key) + '" data-type="switch"' + (on ? ' checked' : '') + '>';
+        } else if (type === 'password') {
+            // 密钥字段按规范明文回显已保存值，需修改时直接输入新值覆盖保存（12A.5）
+            html = '<input type="password" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="password" value="' + escapeHtml(value) + '" placeholder="请输入接口令牌">';
+        } else if (type === 'number') {
+            html = '<input type="number" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="number" value="' + escapeHtml(value) + '">';
+        } else if (MAP_FIELDS[key]) {
+            // 系统邮件模板映射：下拉选择模板（当前值不在选项中时追加兜底项）
+            var opts = templateListCache.filter(function (t) { return t && String(t.status) !== '0'; });
+            html = '<select id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" data-key="' + escapeHtml(key) + '" data-type="text">';
+            html += '<option value=""' + (value === '' ? ' selected' : '') + '>不映射（留空）</option>';
+            var hit = false;
+            opts.forEach(function (t) {
+                if (String(t.code) === String(value)) { hit = true; }
+            });
+            if (value !== '' && !hit) {
+                html += '<option value="' + escapeHtml(value) + '" selected>' + escapeHtml(value) + '（当前值）</option>';
+            }
+            opts.forEach(function (t) {
+                html += '<option value="' + escapeHtml(t.code) + '"' + (String(t.code) === String(value) ? ' selected' : '') + '>' + escapeHtml((t.code || '') + (t.name ? ' · ' + t.name : '')) + '</option>';
+            });
+            html += '</select>';
+        } else {
+            html = '<input type="text" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="text" value="' + escapeHtml(value) + '">';
+        }
+        return html;
+    }
+
+    // 接口文档 Tab：展示对外 HTTP API 的开关、鉴权、清单与调用示例
+    function apiDocHtml() {
+        return '<div class="api-doc">' +
+            '<h3>一、开关与令牌</h3>' +
+            '<table><thead><tr><th style="width:110px;">项目</th><th>说明</th></tr></thead><tbody>' +
+            '<tr><td>开关</td><td>在「接口访问设置」开启 <code>HTTP 接口</code>（api_enabled，默认关闭）</td></tr>' +
+            '<tr><td>令牌</td><td>在「接口访问设置」填写接口令牌（api_token，留空表示禁止接口调用）</td></tr>' +
+            '<tr><td>请求头</td><td>每次请求携带 <code>X-Smtpmail-Token: &lt;接口令牌&gt;</code></td></tr>' +
+            '<tr><td>路由前缀</td><td><code>/api/smtpmail</code>，限流每分钟 60 次</td></tr>' +
+            '</tbody></table>' +
+            '<div class="helper-tip">必须同时开启 HTTP 接口且令牌非空，接口才可用；错误码：40301 接口未开启、40101 令牌无效、40001 参数/业务错误、50001 系统异常。</div>' +
+            '<h3>二、接口清单</h3>' +
+            '<table><thead><tr><th style="width:70px;">方法</th><th style="width:220px;">路径</th><th>请求参数</th><th>返回 data</th></tr></thead><tbody>' +
+            '<tr><td>POST</td><td>/api/smtpmail/send</td><td>模板模式 {template_code, to, vars?}；直发模式 {subject, html, text?, to, options?}；options 可含 cc/bcc/reply_to/attachments/headers/priority/account_code/scheduled_at/queue/source</td><td>{success, record_id, status, message}</td></tr>' +
+            '<tr><td>GET</td><td>/api/smtpmail/templates</td><td>无</td><td>模板选项数组 [{code, name, subject, variables, extracted_variables, is_system}]</td></tr>' +
+            '<tr><td>GET</td><td>/api/smtpmail/records</td><td>status / keyword / date_from / date_to / per_page</td><td>{total, page, data: 记录摘要数组}</td></tr>' +
+            '<tr><td>GET</td><td>/api/smtpmail/status</td><td>无</td><td>{app_id, stats, takeover_enabled, default_account}</td></tr>' +
+            '</tbody></table>' +
+            '<div class="helper-tip">统一响应结构 {code: 0, message, data, timestamp}，code 非 0 表示失败。</div>' +
+            '<h3>三、调用示例</h3>' +
+            '<pre># 发送邮件（POST /api/smtpmail/send）\ncurl -X POST \'https://your-domain.com/api/smtpmail/send\' \\\n  -H \'Content-Type: application/json\' \\\n  -H \'X-Smtpmail-Token: YOUR_API_TOKEN\' \\\n  -d \'{"template_code": "verify_code", "to": "user@example.com", "vars": {"code": "482913", "minutes": 10}}\'\n\n# 模板列表\ncurl -X GET \'https://your-domain.com/api/smtpmail/templates\' \\\n  -H \'X-Smtpmail-Token: YOUR_API_TOKEN\'\n\n# 发送记录\ncurl -X GET \'https://your-domain.com/api/smtpmail/records?status=success\' \\\n  -H \'X-Smtpmail-Token: YOUR_API_TOKEN\'\n\n# 状态查询\ncurl -X GET \'https://your-domain.com/api/smtpmail/status\' \\\n  -H \'X-Smtpmail-Token: YOUR_API_TOKEN\'</pre>' +
+        '</div>';
+    }
+
+    // 渲染分组表单：按配置组分类为 Tab（发信基础 / 接口访问 / 系统邮件模板映射 / 接口文档）
     function renderGroups(data) {
         var groups = normalize(data);
-        var html = '';
-        GROUPS.forEach(function (gr) {
+        var tabTitles = '', tabContents = '';
+        GROUPS.forEach(function (gr, idx) {
+            tabTitles += '<li' + (idx === 0 ? ' class="layui-this"' : '') + '>' + escapeHtml(gr.title) + '</li>';
             var items = groups[gr.key] || [];
-            html += '<div class="layui-card"><div class="layui-card-header"><i class="fa fa-cog"></i> ' + escapeHtml(gr.title) + '</div><div class="layui-card-body">';
-            if (!items.length) { html += '<div class="helper-tip">该分组暂无配置项。</div>'; }
+            var body = '';
+            if (!items.length) { body += '<div class="helper-tip">该分组暂无配置项。</div>'; }
             items.forEach(function (it) {
                 var key = it.key || it.name || '';
                 var title = it.title || it.label || key;
                 var type = it.type || 'text';
                 var value = it.value == null ? '' : it.value;
                 var tips = it.tips || '';
-                html += '<div class="layui-form-item"><label class="layui-form-label" for="cfg_' + escapeHtml(key) + '">' + escapeHtml(title) + '</label><div class="layui-input-block">';
-                if (type === 'switch') {
-                    var on = (String(value) === '1' || value === 1 || value === true || value === 'true');
-                    html += '<input type="checkbox" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" lay-skin="switch" lay-text="开启|关闭" data-key="' + escapeHtml(key) + '" data-type="switch"' + (on ? ' checked' : '') + '>';
-                } else if (type === 'password') {
-                    // 密钥字段按规范明文回显已保存值，需修改时直接输入新值覆盖保存（12A.5）
-                    html += '<input type="password" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="password" value="' + escapeHtml(value) + '" placeholder="请输入接口令牌">';
-                } else if (type === 'number') {
-                    html += '<input type="number" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="number" value="' + escapeHtml(value) + '">';
-                } else {
-                    html += '<input type="text" id="cfg_' + escapeHtml(key) + '" name="' + escapeHtml(key) + '" class="layui-input" data-key="' + escapeHtml(key) + '" data-type="text" value="' + escapeHtml(value) + '">';
-                }
-                if (tips) { html += '<div class="helper-tip">' + escapeHtml(tips) + '</div>'; }
-                html += '</div></div>';
+                body += '<div class="layui-form-item"><label class="layui-form-label" for="cfg_' + escapeHtml(key) + '">' + escapeHtml(title) + '</label><div class="layui-input-block">';
+                body += renderControl(key, title, type, value);
+                if (tips) { body += '<div class="helper-tip">' + escapeHtml(tips) + '</div>'; }
+                body += '</div></div>';
             });
-            html += '</div></div>';
+            tabContents += '<div class="layui-tab-item' + (idx === 0 ? ' layui-show' : '') + '">' +
+                '<div class="layui-card"><div class="layui-card-body">' + body + '</div></div></div>';
         });
-        $('#settingsGroups').html(html);
+        // 第四个 Tab：接口文档（纯展示，无表单项）
+        tabTitles += '<li>接口文档</li>';
+        tabContents += '<div class="layui-tab-item"><div class="layui-card"><div class="layui-card-body">' + apiDocHtml() + '</div></div></div>';
+
+        $('#settingsGroups').html(
+            '<div class="layui-tab layui-tab-brief settings-tab" lay-filter="settingsTab">' +
+                '<ul class="layui-tab-title">' + tabTitles + '</ul>' +
+                '<div class="layui-tab-content">' + tabContents + '</div>' +
+            '</div>'
+        );
         form.render();
     }
 
-    // 加载配置项
+    // 加载配置项（先拉取模板选项供映射下拉使用，失败不阻塞设置渲染）
     function loadSettings() {
         var ld = layer.load(1, { shade: 0.3 });
+        $.get(API + '/templates/options', function () { loadSettingsInner(ld); }, 'json')
+            .fail(function () { loadSettingsInner(ld); });
+    }
+
+    function loadSettingsInner(ld) {
         $.get(API + '/settings', function (res) {
             layer.close(ld);
             if (res.code !== 0) { layer.msg(res.message || '设置读取失败', { icon: 2 }); return; }
@@ -233,7 +316,8 @@ layui.use(['jquery', 'form', 'layer'], function () {
         if (!hasPerm(PERM)) { layer.msg('无操作权限', { icon: 2 }); return; }
         if (busyLock()) { return; }
         var payload = {};
-        $('.settings-form input[type="text"], .settings-form input[type="password"], .settings-form input[type="number"]').each(function () {
+        // 普通输入项 + 模板映射下拉（select 不被 input 收集器覆盖，需单独纳入）
+        $('.settings-form input[type="text"], .settings-form input[type="password"], .settings-form input[type="number"], .settings-form select[data-key]').each(function () {
             var key = $(this).data('key');
             if (key) { payload[key] = String($(this).val() == null ? '' : $(this).val()); }
         });
@@ -265,6 +349,7 @@ layui.use(['jquery', 'form', 'layer'], function () {
     // 重新载入：恢复为服务端最新配置
     $('button[type="reset"]').on('click', function () { setTimeout(loadSettings, 0); });
 
+    loadTemplateOptions();
     loadSettings();
     loadTakeoverStatus();
 });
