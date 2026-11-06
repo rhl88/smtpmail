@@ -149,6 +149,13 @@
                     "type": "switch",
                     "value": "1",
                     "tips": "开启后发送前自动过滤黑名单中的邮箱地址"
+                },
+                {
+                    "name": "welcome_mail",
+                    "title": "欢迎邮件",
+                    "type": "switch",
+                    "value": "0",
+                    "tips": "开启后新用户注册成功时自动发送「新用户欢迎邮件」（welcome 模板）；注册用户未填写邮箱时不发送"
                 }
             ]
         },

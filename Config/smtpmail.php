@@ -15,6 +15,7 @@ return [
     'log_retention_days' => '90',
     'site_name' => 'CmsPro',
     'enable_blacklist' => '1',
+    'welcome_mail' => '0',
     'api_enabled' => '0',
     'api_token' => '',
     'template_verify_code' => 'verify_code',

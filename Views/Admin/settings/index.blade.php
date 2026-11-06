@@ -104,7 +104,7 @@ layui.use(['jquery', 'form', 'layer', 'element'], function () {
         { key: 'system_templates', title: '系统邮件模板映射' }
     ];
     // 开关字段名单（与 manifest type=switch 的配置项一致；checkbox 不被 jQuery serialize 收集，需单独收集转 '1'/'0'）
-    var switchFields = ['takeover_system_mail', 'use_queue', 'enable_blacklist', 'api_enabled'];
+    var switchFields = ['takeover_system_mail', 'use_queue', 'enable_blacklist', 'welcome_mail', 'api_enabled'];
 
     // HTML 转义，避免拼接内容造成注入
     function escapeHtml(str) {

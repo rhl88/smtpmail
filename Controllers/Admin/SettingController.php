@@ -31,6 +31,7 @@ class SettingController extends BaseAdminController
         'log_retention_days',
         'site_name',
         'enable_blacklist',
+        'welcome_mail',
         'api_enabled',
         'api_token',
         'template_verify_code',
